@@ -3,9 +3,10 @@
 App desktop para organizar bibliotecas de vídeo, construído com Electron, React,
 TypeScript, Vite e TailwindCSS. Alvo: Linux (Zorin OS / Ubuntu).
 
-**Status:** tela de configuração inicial funcionando — cadastro de pastas de
-origem pelo seletor nativo, escaneamento recursivo de vídeos e imagens, e
-catálogo persistido em SQLite. A tela do feed ainda é um esqueleto.
+**Status:** configuração inicial e feed funcionando. Cadastro de pastas pelo
+seletor nativo, escaneamento recursivo, catálogo em SQLite e um feed vertical
+estilo TikTok que toca os vídeos direto do disco. Falta a parte de mover os
+arquivos para pastas de destino.
 
 ## Comandos
 
@@ -19,14 +20,15 @@ catálogo persistido em SQLite. A tela do feed ainda é um esqueleto.
 ## Estrutura
 
 ```
-src/main/main.ts       cria a janela, inicializa banco e handlers
-src/main/ipc.ts        handlers IPC: seletor de pasta, cadastro, remoção
-src/main/db.ts         SQLite (better-sqlite3): schema e queries
-src/main/scanner.ts    varredura recursiva de vídeos e imagens
-src/main/preload.ts    ponte segura main <-> renderer (window.api)
-src/shared/            tipos e nomes de canais usados pelos dois lados
-src/renderer/          app React (Vite serve esta pasta como raiz)
-scripts/build-main.mjs bundle do lado Electron com esbuild
+src/main/main.ts          cria a janela, inicializa banco e handlers
+src/main/ipc.ts           handlers IPC: seletor de pasta, cadastro, remoção
+src/main/db.ts            SQLite (better-sqlite3): schema e queries
+src/main/scanner.ts       varredura recursiva de vídeos e imagens
+src/main/media-protocol.ts  protocolo media:// que serve os arquivos do disco
+src/main/preload.ts       ponte segura main <-> renderer (window.api)
+src/shared/               tipos, nomes de canais e a URL media:// (dois lados)
+src/renderer/             app React (Vite serve esta pasta como raiz)
+scripts/build-main.mjs    bundle do lado Electron com esbuild
 ```
 
 ## Comunicação entre processos (IPC)
@@ -46,6 +48,25 @@ São dois padrões, com propósitos diferentes:
 Os nomes dos canais ficam em `src/shared/ipc.ts` e os formatos em
 `src/shared/types.ts`, importados pelos dois lados: se um lado mudar o contrato,
 o outro para de compilar em vez de falhar só em runtime.
+
+## Como os arquivos chegam na tela (protocolo `media://`)
+
+O feed precisa exibir vídeos e imagens que estão em qualquer lugar do disco. O
+caminho curto seria `webSecurity: false` e `<video src="file:///...">`, mas isso
+desliga a same-origin policy do renderer inteiro: qualquer script na página
+passaria a ler `file:///etc/passwd`, `~/.ssh/` e o resto do sistema.
+
+Em vez disso, `webSecurity` continua ligado e o app registra um esquema próprio,
+`media://`, servido por `src/main/media-protocol.ts`. A trava é o catálogo: o
+handler só entrega um arquivo se ele estiver em `media_files`, ou seja, se veio
+de uma pasta que o usuário escolheu no seletor nativo. Pedidos a qualquer outro
+caminho respondem 404 — inclusive tentativas de path traversal, porque o esquema
+é registrado como `standard` e o Chromium normaliza `..` antes de chegar ao
+nosso código.
+
+O handler também implementa requisições parciais (`Range` / 206), que é o que
+permite ao `<video>` começar a tocar e fazer seek sem carregar o arquivo inteiro,
+e transmite por stream em vez de ler tudo para a memória.
 
 ## Banco de dados
 

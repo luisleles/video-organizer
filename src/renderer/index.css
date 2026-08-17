@@ -5,3 +5,11 @@ body,
 #root {
   height: 100%;
 }
+
+/* O feed rola item a item; a barra de rolagem só polui a tela cheia. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { AddFolderResult, ScanProgress, SourceFolder } from '../shared/types'
+import type { AddFolderResult, MediaFile, ScanProgress, SourceFolder } from '../shared/types'
 
 /**
  * O que o React enxerga como `window.api`.
@@ -28,6 +28,10 @@ const api = {
 
   /** Descadastra a pasta. Não apaga nada do disco. */
   removeFolder: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.removeFolder, id),
+
+  /** Fila do feed: arquivos com organized = 0, na ordem de descoberta. */
+  listUnorganizedMedia: (): Promise<MediaFile[]> =>
+    ipcRenderer.invoke(IPC.listUnorganizedMedia),
 
   /**
    * Escuta o progresso do scan (main -> renderer). Devolve uma função de

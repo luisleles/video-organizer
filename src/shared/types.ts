@@ -14,6 +14,16 @@ export interface SourceFolder {
   totalCount: number
 }
 
+export interface MediaFile {
+  id: number
+  /** caminho absoluto no disco */
+  path: string
+  filename: string
+  type: MediaType
+  /** ISO 8601 */
+  discoveredAt: string
+}
+
 export interface ScanProgress {
   folderPath: string
   filesFound: number

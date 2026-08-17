@@ -2,6 +2,11 @@ import { app, BrowserWindow, shell } from 'electron'
 import path from 'node:path'
 import { closeDatabase, initDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
+import { registerMediaProtocol, registerMediaSchemePrivileges } from './media-protocol'
+
+// Fora do whenReady de propósito: precisa acontecer antes da inicialização do
+// Chromium, senão os privilégios do esquema media:// são ignorados.
+registerMediaSchemePrivileges()
 
 // Em dev (`npm run dev`) o app não está empacotado: carregamos a URL do Vite.
 // Empacotado, carregamos o HTML gerado por `npm run build`.
@@ -54,6 +59,8 @@ void app.whenReady().then(() => {
   // antes da janela — o React chama listFolders() no primeiro render.
   console.log('[db]', initDatabase())
   registerIpcHandlers()
+  // Depende do banco: o handler consulta o catálogo para decidir o que servir.
+  registerMediaProtocol()
   createWindow()
 
   // Convenção do macOS; inofensivo no Linux.

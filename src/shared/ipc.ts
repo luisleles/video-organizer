@@ -8,6 +8,8 @@ export const IPC = {
   addFolder: 'folders:add',
   /** renderer -> main, com resposta: descadastra uma pasta (não toca no disco) */
   removeFolder: 'folders:remove',
+  /** renderer -> main, com resposta: fila do feed (o que ainda não foi organizado) */
+  listUnorganizedMedia: 'media:list-unorganized',
   /** main -> renderer, sem resposta: progresso do escaneamento em andamento */
   scanProgress: 'scan:progress',
 } as const

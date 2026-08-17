@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import Database from 'better-sqlite3'
 import path from 'node:path'
-import type { MediaType, SourceFolder } from '../shared/types'
+import type { MediaFile, MediaType, SourceFolder } from '../shared/types'
 import type { ScannedFile } from './scanner'
 
 // O banco fica em userData (~/.config/video-organizer no Linux), não junto do
@@ -118,6 +118,29 @@ export function insertMediaFiles(folderId: number, files: ScannedFile[]): number
     return inserted
   })
   return insertAll(files, new Date().toISOString())
+}
+
+/** Fila do feed: o que ainda não foi organizado, na ordem em que foi descoberto. */
+export function listUnorganizedMedia(): MediaFile[] {
+  return conn()
+    .prepare(
+      `SELECT id, path, filename, type, discovered_at AS discoveredAt
+         FROM media_files
+        WHERE organized = 0
+        ORDER BY discovered_at, id`,
+    )
+    .all() as MediaFile[]
+}
+
+/**
+ * Usado pelo protocolo media:// como allowlist. Roda a cada requisição do
+ * <video> (incluindo cada Range), então precisa ser barato: `path` é UNIQUE,
+ * logo indexado, e a consulta é in-process — custa microssegundos.
+ */
+export function isCatalogued(filePath: string): boolean {
+  return (
+    conn().prepare('SELECT 1 FROM media_files WHERE path = ? LIMIT 1').get(filePath) !== undefined
+  )
 }
 
 export function countMediaByType(folderId: number, type: MediaType): number {

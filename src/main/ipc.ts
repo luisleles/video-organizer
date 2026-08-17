@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { AddFolderResult, ScanProgress, SourceFolder } from '../shared/types'
+import type { AddFolderResult, MediaFile, ScanProgress, SourceFolder } from '../shared/types'
 import * as db from './db'
 import { scanFolder } from './scanner'
 
@@ -13,6 +13,8 @@ export function registerIpcHandlers(): void {
   // --- renderer -> main, com resposta (invoke/handle) ---
 
   ipcMain.handle(IPC.listFolders, (): SourceFolder[] => db.listSourceFolders())
+
+  ipcMain.handle(IPC.listUnorganizedMedia, (): MediaFile[] => db.listUnorganizedMedia())
 
   ipcMain.handle(IPC.addFolder, async (event): Promise<AddFolderResult> => {
     // `event.sender` é o webContents de quem chamou; dá pra descobrir a janela e

@@ -1,17 +1,16 @@
 {
+  // Só checagem de tipos: quem gera os arquivos é o esbuild (scripts/build-main.mjs).
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
     "module": "node16",
     "moduleResolution": "node16",
-    "outDir": "dist-electron",
-    "rootDir": "src/main",
+    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "sourceMap": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src/main"]
+  "include": ["src/main", "src/shared", "scripts"]
 }

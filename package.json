@@ -9,27 +9,32 @@
   "scripts": {
     "dev": "concurrently -k -n vite,main,electron -c cyan,yellow,magenta \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:electron\"",
     "dev:renderer": "vite",
-    "dev:main": "tsc -p tsconfig.main.json --watch --preserveWatchOutput",
+    "dev:main": "node scripts/build-main.mjs --watch",
     "dev:electron": "wait-on tcp:5173 dist-electron/main.js dist-electron/preload.js && env -u ELECTRON_RUN_AS_NODE electron . --ozone-platform=${OZONE:-x11}",
-    "build": "npm run build:main && npm run build:renderer",
-    "build:main": "tsc -p tsconfig.main.json",
+    "build": "npm run typecheck && npm run build:main && npm run build:renderer",
+    "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
     "preview": "npm run build && env -u ELECTRON_RUN_AS_NODE electron . --ozone-platform=${OZONE:-x11}",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
     "concurrently": "^10.0.5",
     "electron": "^43.4.0",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
     "wait-on": "^9.1.0"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }

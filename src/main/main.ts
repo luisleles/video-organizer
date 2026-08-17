@@ -1,5 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import path from 'node:path'
+import { closeDatabase, initDatabase } from './db'
+import { registerIpcHandlers } from './ipc'
 
 // Em dev (`npm run dev`) o app não está empacotado: carregamos a URL do Vite.
 // Empacotado, carregamos o HTML gerado por `npm run build`.
@@ -48,6 +50,10 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  // Ordem importa: o banco precisa existir antes dos handlers, e os handlers
+  // antes da janela — o React chama listFolders() no primeiro render.
+  console.log('[db]', initDatabase())
+  registerIpcHandlers()
   createWindow()
 
   // Convenção do macOS; inofensivo no Linux.
@@ -59,3 +65,7 @@ void app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+// Fecha o banco limpo: garante o checkpoint do WAL em vez de deixar o -wal
+// pendurado para a próxima abertura recuperar.
+app.on('before-quit', closeDatabase)

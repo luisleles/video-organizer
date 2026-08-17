@@ -1,8 +1,22 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { IPC } from '../shared/ipc'
-import type { AddFolderResult, MediaFile, ScanProgress, SourceFolder } from '../shared/types'
+import type {
+  AddFolderResult,
+  CreateDestinationResult,
+  DestinationFolder,
+  MediaFile,
+  OrganizeResult,
+  ScanProgress,
+  SourceFolder,
+  UndoResult,
+} from '../shared/types'
 import * as db from './db'
+import { FileMoveError, moveFile } from './file-mover'
 import { scanFolder } from './scanner'
+
+const ORGANIZATION_ROOT_KEY = 'organizationRoot'
 
 /**
  * Registra tudo que o renderer pode pedir ao main. Esta é a superfície de ataque
@@ -64,11 +78,162 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.removeFolder, (_event, id: unknown): boolean => {
     // O renderer é código web: trate o que vem dele como entrada não confiável.
     // Sem esta checagem, um `id` inesperado viraria erro dentro do driver SQLite.
-    if (typeof id !== 'number' || !Number.isInteger(id)) {
-      throw new Error(`id inválido: ${String(id)}`)
-    }
-    return db.deleteSourceFolder(id)
+    return db.deleteSourceFolder(requireId(id, 'id da pasta'))
   })
+
+  // --- pastas de destino ---
+
+  ipcMain.handle(IPC.listDestinations, (): DestinationFolder[] => db.listDestinationFolders())
+
+  ipcMain.handle(IPC.organizationRoot, (): string => organizationRoot())
+
+  ipcMain.handle(IPC.chooseDestinationParent, async (event): Promise<string | null> => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Onde criar a nova pasta',
+      buttonLabel: 'Criar aqui',
+      defaultPath: organizationRoot(),
+      properties: ['openDirectory', 'createDirectory'],
+    }
+    const selection = await (window
+      ? dialog.showOpenDialog(window, options)
+      : dialog.showOpenDialog(options))
+
+    const chosen = selection.filePaths[0]
+    if (selection.canceled || !chosen) return null
+
+    // A escolha vira a sugestão padrão da próxima vez.
+    db.setSetting(ORGANIZATION_ROOT_KEY, chosen)
+    return chosen
+  })
+
+  ipcMain.handle(
+    IPC.createDestination,
+    async (_event, rawName: unknown, rawParent: unknown): Promise<CreateDestinationResult> => {
+      const name = typeof rawName === 'string' ? rawName.trim() : ''
+      const parent = typeof rawParent === 'string' && rawParent ? rawParent : organizationRoot()
+
+      const nameError = validateFolderName(name)
+      if (nameError) return { status: 'invalid-name', message: nameError }
+
+      if (!path.isAbsolute(parent)) {
+        return { status: 'error', message: 'Caminho de destino inválido' }
+      }
+
+      const fullPath = path.join(parent, name)
+
+      const known = db.findDestinationByPath(fullPath)
+      if (known) return { status: 'already-known', folder: known }
+
+      try {
+        // recursive: true não reclama se a pasta já existir no disco — o usuário
+        // pode estar cadastrando uma pasta que ele mesmo criou por fora.
+        await fs.mkdir(fullPath, { recursive: true })
+        return { status: 'created', folder: db.insertDestinationFolder(fullPath, name) }
+      } catch (error) {
+        const code = (error as { code?: string }).code
+        if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') {
+          return { status: 'permission-denied' }
+        }
+        return { status: 'error', message: error instanceof Error ? error.message : String(error) }
+      }
+    },
+  )
+
+  // --- organizar / desfazer ---
+
+  ipcMain.handle(
+    IPC.organizeMedia,
+    async (_event, rawMediaId: unknown, rawDestinationId: unknown): Promise<OrganizeResult> => {
+      const mediaId = requireId(rawMediaId, 'id do arquivo')
+      const destinationId = requireId(rawDestinationId, 'id da pasta de destino')
+
+      const media = db.getMediaFile(mediaId)
+      if (!media) return { status: 'error', message: 'Arquivo não está mais no catálogo' }
+
+      const destination = db.getDestinationFolder(destinationId)
+      if (!destination) return { status: 'error', message: 'Pasta de destino não encontrada' }
+
+      try {
+        const newPath = await moveFile(media.path, destination.path)
+        const newFilename = path.basename(newPath)
+
+        // Só grava no banco depois que o disco confirmou: se a ordem fosse
+        // inversa, uma falha de escrita deixaria o catálogo apontando para um
+        // arquivo que nunca saiu do lugar.
+        db.markOrganized(mediaId, newPath, destination.id, media.path)
+        db.touchDestinationFolder(destination.id)
+
+        return {
+          status: 'moved',
+          newPath,
+          newFilename,
+          wasRenamed: newFilename !== media.filename,
+        }
+      } catch (error) {
+        return organizeErrorFor(error)
+      }
+    },
+  )
+
+  ipcMain.handle(IPC.undoOrganize, async (_event, rawMediaId: unknown): Promise<UndoResult> => {
+    const mediaId = requireId(rawMediaId, 'id do arquivo')
+
+    const media = db.getOrganizedMedia(mediaId)
+    if (!media?.originalPath) return { status: 'nothing-to-undo' }
+
+    try {
+      // Volta para a pasta de origem. Se algo já ocupou o nome antigo nesse meio
+      // tempo, moveFile resolve com um sufixo em vez de sobrescrever.
+      const restoredPath = await moveFile(media.path, path.dirname(media.originalPath))
+      db.markUnorganized(mediaId, restoredPath)
+      return { status: 'restored', restoredPath }
+    } catch (error) {
+      const result = organizeErrorFor(error)
+      return result.status === 'disk-full'
+        ? { status: 'error', message: 'Não há espaço livre no disco de origem' }
+        : (result as UndoResult)
+    }
+  })
+}
+
+/** Raiz sugerida para novas pastas: o que o usuário escolheu por último, ou ~/Vídeos. */
+function organizationRoot(): string {
+  return db.getSetting(ORGANIZATION_ROOT_KEY) ?? app.getPath('videos')
+}
+
+function requireId(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} inválido: ${String(value)}`)
+  }
+  return value
+}
+
+/**
+ * O nome vem digitado pelo usuário e vira caminho no disco. Sem esta validação,
+ * digitar `../../..` criaria pasta fora da raiz escolhida.
+ */
+function validateFolderName(name: string): string | null {
+  if (!name) return 'Escolha um nome para a pasta'
+  if (name === '.' || name === '..') return 'Esse nome não pode ser usado'
+  if (name.includes('/') || name.includes('\0')) return 'O nome não pode conter barras'
+  if (name.startsWith('.')) return 'Nomes começando com ponto ficam ocultos no Linux'
+  if (name.length > 255) return 'O nome é longo demais'
+  return null
+}
+
+function organizeErrorFor(error: unknown): OrganizeResult {
+  if (error instanceof FileMoveError) {
+    switch (error.reason) {
+      case 'source-missing':
+        return { status: 'source-missing' }
+      case 'permission-denied':
+        return { status: 'permission-denied' }
+      case 'disk-full':
+        return { status: 'disk-full' }
+    }
+  }
+  return { status: 'error', message: error instanceof Error ? error.message : String(error) }
 }
 
 const DIALOG_OPTIONS: Electron.OpenDialogOptions = {

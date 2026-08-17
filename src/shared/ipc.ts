@@ -10,6 +10,18 @@ export const IPC = {
   removeFolder: 'folders:remove',
   /** renderer -> main, com resposta: fila do feed (o que ainda não foi organizado) */
   listUnorganizedMedia: 'media:list-unorganized',
+  /** renderer -> main, com resposta: pastas de destino, mais usadas recentemente primeiro */
+  listDestinations: 'destinations:list',
+  /** renderer -> main, com resposta: cria a pasta no disco e cadastra */
+  createDestination: 'destinations:create',
+  /** renderer -> main, com resposta: seletor nativo para escolher onde criar */
+  chooseDestinationParent: 'destinations:choose-parent',
+  /** renderer -> main, com resposta: raiz sugerida para novas pastas */
+  organizationRoot: 'settings:organization-root',
+  /** renderer -> main, com resposta: move o arquivo e marca como organizado */
+  organizeMedia: 'organize:move',
+  /** renderer -> main, com resposta: move de volta e desmarca */
+  undoOrganize: 'organize:undo',
   /** main -> renderer, sem resposta: progresso do escaneamento em andamento */
   scanProgress: 'scan:progress',
 } as const

@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { AddFolderResult, MediaFile, ScanProgress, SourceFolder } from '../shared/types'
+import type {
+  AddFolderResult,
+  CreateDestinationResult,
+  DestinationFolder,
+  MediaFile,
+  OrganizeResult,
+  ScanProgress,
+  SourceFolder,
+  UndoResult,
+} from '../shared/types'
 
 /**
  * O que o React enxerga como `window.api`.
@@ -30,8 +39,29 @@ const api = {
   removeFolder: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.removeFolder, id),
 
   /** Fila do feed: arquivos com organized = 0, na ordem de descoberta. */
-  listUnorganizedMedia: (): Promise<MediaFile[]> =>
-    ipcRenderer.invoke(IPC.listUnorganizedMedia),
+  listUnorganizedMedia: (): Promise<MediaFile[]> => ipcRenderer.invoke(IPC.listUnorganizedMedia),
+
+  /** Pastas de destino, mais recentemente usadas primeiro. */
+  listDestinations: (): Promise<DestinationFolder[]> => ipcRenderer.invoke(IPC.listDestinations),
+
+  /** Raiz sugerida para novas pastas (a última escolhida, ou ~/Vídeos). */
+  organizationRoot: (): Promise<string> => ipcRenderer.invoke(IPC.organizationRoot),
+
+  /** Abre o seletor nativo para escolher onde a nova pasta será criada. */
+  chooseDestinationParent: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.chooseDestinationParent),
+
+  /** Cria a pasta no disco e cadastra. `parentPath` vazio usa a raiz sugerida. */
+  createDestination: (name: string, parentPath: string): Promise<CreateDestinationResult> =>
+    ipcRenderer.invoke(IPC.createDestination, name, parentPath),
+
+  /** Move o arquivo para a pasta escolhida e marca como organizado. */
+  organizeMedia: (mediaId: number, destinationId: number): Promise<OrganizeResult> =>
+    ipcRenderer.invoke(IPC.organizeMedia, mediaId, destinationId),
+
+  /** Move o arquivo de volta para onde estava e desmarca. */
+  undoOrganize: (mediaId: number): Promise<UndoResult> =>
+    ipcRenderer.invoke(IPC.undoOrganize, mediaId),
 
   /**
    * Escuta o progresso do scan (main -> renderer). Devolve uma função de

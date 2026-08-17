@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import Database from 'better-sqlite3'
 import path from 'node:path'
-import type { MediaFile, MediaType, SourceFolder } from '../shared/types'
+import type { DestinationFolder, MediaFile, MediaType, SourceFolder } from '../shared/types'
 import type { ScannedFile } from './scanner'
 
 // O banco fica em userData (~/.config/video-organizer no Linux), não junto do
@@ -28,7 +28,46 @@ CREATE TABLE IF NOT EXISTS media_files (
 
 CREATE INDEX IF NOT EXISTS idx_media_folder    ON media_files (folder_source_id);
 CREATE INDEX IF NOT EXISTS idx_media_organized ON media_files (organized);
+
+CREATE TABLE IF NOT EXISTS destination_folders (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  path         TEXT NOT NULL UNIQUE,
+  name         TEXT NOT NULL,
+  created_at   TEXT NOT NULL,
+  last_used_at TEXT
+);
+
+-- Chave/valor simples para preferências (por ora só a raiz de organização).
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `
+
+/**
+ * Colunas acrescentadas depois que a tabela já existia no disco. `CREATE TABLE
+ * IF NOT EXISTS` não altera tabela existente, então bancos criados antes desta
+ * versão ficariam sem elas e o app quebraria ao organizar.
+ */
+const MIGRATIONS: Array<{ table: string; column: string; definition: string }> = [
+  // Onde o arquivo estava antes de ser organizado — é o que torna o undo possível.
+  { table: 'media_files', column: 'original_path', definition: 'TEXT' },
+  { table: 'media_files', column: 'organized_at', definition: 'TEXT' },
+  {
+    table: 'media_files',
+    column: 'destination_folder_id',
+    definition: 'INTEGER REFERENCES destination_folders(id)',
+  },
+]
+
+function runMigrations(database: Database.Database): void {
+  for (const { table, column, definition } of MIGRATIONS) {
+    const columns = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+    if (!columns.some((existing) => existing.name === column)) {
+      database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+}
 
 export function initDatabase(): string {
   const file = path.join(app.getPath('userData'), 'library.db')
@@ -39,6 +78,7 @@ export function initDatabase(): string {
   // Precisa ser ligado em toda conexão; sem isso o ON DELETE CASCADE é ignorado.
   db.pragma('foreign_keys = ON')
   db.exec(SCHEMA)
+  runMigrations(db)
   return file
 }
 
@@ -148,4 +188,111 @@ export function countMediaByType(folderId: number, type: MediaType): number {
     .prepare('SELECT COUNT(*) AS total FROM media_files WHERE folder_source_id = ? AND type = ?')
     .get(folderId, type) as { total: number }
   return row.total
+}
+
+const MEDIA_COLUMNS = `id, path, filename, type, discovered_at AS discoveredAt`
+
+export function getMediaFile(id: number): MediaFile | undefined {
+  return conn().prepare(`SELECT ${MEDIA_COLUMNS} FROM media_files WHERE id = ?`).get(id) as
+    | MediaFile
+    | undefined
+}
+
+/** Só para o undo: precisa saber de onde o arquivo veio. */
+export function getOrganizedMedia(
+  id: number,
+): (MediaFile & { originalPath: string | null }) | undefined {
+  return conn()
+    .prepare(
+      `SELECT ${MEDIA_COLUMNS}, original_path AS originalPath
+         FROM media_files WHERE id = ? AND organized = 1`,
+    )
+    .get(id) as (MediaFile & { originalPath: string | null }) | undefined
+}
+
+export function markOrganized(
+  id: number,
+  newPath: string,
+  destinationId: number,
+  originalPath: string,
+): void {
+  conn()
+    .prepare(
+      `UPDATE media_files
+          SET path = ?, filename = ?, organized = 1,
+              original_path = ?, organized_at = ?, destination_folder_id = ?
+        WHERE id = ?`,
+    )
+    .run(newPath, path.basename(newPath), originalPath, new Date().toISOString(), destinationId, id)
+}
+
+export function markUnorganized(id: number, restoredPath: string): void {
+  conn()
+    .prepare(
+      `UPDATE media_files
+          SET path = ?, filename = ?, organized = 0,
+              original_path = NULL, organized_at = NULL, destination_folder_id = NULL
+        WHERE id = ?`,
+    )
+    .run(restoredPath, path.basename(restoredPath), id)
+}
+
+// --- pastas de destino ---
+
+const DESTINATION_COLUMNS = `id, path, name, created_at AS createdAt, last_used_at AS lastUsedAt`
+
+/** Mais recentemente usadas primeiro; as nunca usadas caem para a data de criação. */
+export function listDestinationFolders(): DestinationFolder[] {
+  return conn()
+    .prepare(
+      `SELECT ${DESTINATION_COLUMNS}
+         FROM destination_folders
+        ORDER BY COALESCE(last_used_at, created_at) DESC, id DESC`,
+    )
+    .all() as DestinationFolder[]
+}
+
+export function getDestinationFolder(id: number): DestinationFolder | undefined {
+  return conn()
+    .prepare(`SELECT ${DESTINATION_COLUMNS} FROM destination_folders WHERE id = ?`)
+    .get(id) as DestinationFolder | undefined
+}
+
+export function findDestinationByPath(folderPath: string): DestinationFolder | undefined {
+  return conn()
+    .prepare(`SELECT ${DESTINATION_COLUMNS} FROM destination_folders WHERE path = ?`)
+    .get(folderPath) as DestinationFolder | undefined
+}
+
+export function insertDestinationFolder(folderPath: string, name: string): DestinationFolder {
+  const id = Number(
+    conn()
+      .prepare('INSERT INTO destination_folders (path, name, created_at) VALUES (?, ?, ?)')
+      .run(folderPath, name, new Date().toISOString()).lastInsertRowid,
+  )
+  return getDestinationFolder(id)!
+}
+
+export function touchDestinationFolder(id: number): void {
+  conn()
+    .prepare('UPDATE destination_folders SET last_used_at = ? WHERE id = ?')
+    .run(new Date().toISOString(), id)
+}
+
+// --- preferências ---
+
+export function getSetting(key: string): string | undefined {
+  const row = conn().prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined
+  return row?.value
+}
+
+export function setSetting(key: string, value: string): void {
+  conn()
+    .prepare(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    )
+    .run(key, value)
 }

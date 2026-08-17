@@ -3,10 +3,19 @@
 App desktop para organizar bibliotecas de vídeo, construído com Electron, React,
 TypeScript, Vite e TailwindCSS. Alvo: Linux (Zorin OS / Ubuntu).
 
-**Status:** configuração inicial e feed funcionando. Cadastro de pastas pelo
-seletor nativo, escaneamento recursivo, catálogo em SQLite e um feed vertical
-estilo TikTok que toca os vídeos direto do disco. Falta a parte de mover os
-arquivos para pastas de destino.
+**Status:** fluxo principal completo. Cadastro de pastas pelo seletor nativo,
+escaneamento recursivo, catálogo em SQLite, feed vertical estilo TikTok tocando
+os vídeos direto do disco, e organização em pastas de destino com desfazer.
+
+## Atalhos do feed
+
+| Tecla | Ação |
+| --- | --- |
+| `↓` / `↑` | Próximo / anterior |
+| `O` | Abre o painel de organizar |
+| `S` | Pula (o arquivo volta no fim da fila) |
+| `M` | Liga/desliga o som |
+| `Esc` | Volta para a configuração |
 
 ## Comandos
 
@@ -67,6 +76,25 @@ nosso código.
 O handler também implementa requisições parciais (`Range` / 206), que é o que
 permite ao `<video>` começar a tocar e fazer seek sem carregar o arquivo inteiro,
 e transmite por stream em vez de ler tudo para a memória.
+
+## Mover arquivos com segurança
+
+`src/main/file-mover.ts` é o único lugar que escreve no disco do usuário, e ele
+segue três regras:
+
+1. **Nunca sobrescreve.** `fs.rename` apaga o destino existente sem avisar — o
+   que aqui significaria destruir um vídeo. Se o nome já existir no destino, o
+   arquivo vira `nome (2).mp4`, e a interface avisa que houve renomeação.
+2. **Atravessa sistemas de arquivos.** `rename` falha com `EXDEV` entre
+   partições ou para um HD externo; nesse caso cai para copiar e apagar. Se a
+   cópia funcionar mas o original não puder ser removido, a cópia é desfeita —
+   melhor falhar do que deixar o arquivo duplicado sem o usuário saber.
+3. **Disco primeiro, banco depois.** O catálogo só é atualizado depois que o
+   sistema de arquivos confirmou a operação.
+
+Erros previstos (arquivo sumiu, sem permissão, disco cheio) viram mensagens na
+interface em vez de exceção. O desfazer usa a coluna `original_path`, gravada no
+momento em que o arquivo é organizado.
 
 ## Banco de dados
 

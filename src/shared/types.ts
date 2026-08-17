@@ -24,6 +24,41 @@ export interface MediaFile {
   discoveredAt: string
 }
 
+export interface DestinationFolder {
+  id: number
+  path: string
+  name: string
+  createdAt: string
+  /** null enquanto nunca tiver recebido um arquivo */
+  lastUsedAt: string | null
+}
+
+/**
+ * Falhas de mover arquivo são casos previstos, não exceções: o disco pode estar
+ * cheio, a pasta pode ser somente-leitura, o arquivo pode ter sido apagado por
+ * fora do app. Cada um tem uma mensagem própria na interface.
+ */
+export type OrganizeResult =
+  | { status: 'moved'; newPath: string; newFilename: string; wasRenamed: boolean }
+  | { status: 'source-missing' }
+  | { status: 'permission-denied' }
+  | { status: 'disk-full' }
+  | { status: 'error'; message: string }
+
+export type UndoResult =
+  | { status: 'restored'; restoredPath: string }
+  | { status: 'nothing-to-undo' }
+  | { status: 'source-missing' }
+  | { status: 'permission-denied' }
+  | { status: 'error'; message: string }
+
+export type CreateDestinationResult =
+  | { status: 'created'; folder: DestinationFolder }
+  | { status: 'already-known'; folder: DestinationFolder }
+  | { status: 'invalid-name'; message: string }
+  | { status: 'permission-denied' }
+  | { status: 'error'; message: string }
+
 export interface ScanProgress {
   folderPath: string
   filesFound: number

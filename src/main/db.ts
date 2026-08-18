@@ -27,7 +27,9 @@ CREATE TABLE IF NOT EXISTS media_files (
   path             TEXT NOT NULL UNIQUE,
   filename         TEXT NOT NULL,
   type             TEXT NOT NULL CHECK (type IN ('video', 'image')),
-  folder_source_id INTEGER NOT NULL REFERENCES source_folders(id) ON DELETE CASCADE,
+  -- Opcional: arquivos descobertos dentro das pastas de destino não vieram
+  -- de nenhuma pasta de origem.
+  folder_source_id INTEGER REFERENCES source_folders(id) ON DELETE CASCADE,
   -- SQLite não tem BOOLEAN: 0 = false, 1 = true.
   organized        INTEGER NOT NULL DEFAULT 0 CHECK (organized IN (0, 1)),
   discovered_at    TEXT NOT NULL
@@ -77,6 +79,67 @@ function runMigrations(database: Database.Database): void {
     if (!columns.some((existing) => existing.name === column)) {
       database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
     }
+  }
+  allowMediaWithoutSourceFolder(database)
+}
+
+/**
+ * Torna `folder_source_id` opcional.
+ *
+ * Até aqui todo arquivo do catálogo vinha de uma pasta de origem escaneada. Os
+ * arquivos que já estavam dentro das pastas de destino antes de o app existir
+ * não vieram de lugar nenhum — e a coluna NOT NULL impedia registrá-los, o que
+ * por sua vez os deixava invisíveis, já que o protocolo media:// só serve o que
+ * está catalogado.
+ *
+ * SQLite não sabe remover um NOT NULL com ALTER TABLE, então é preciso recriar
+ * a tabela e copiar os dados. Roda dentro de uma transação e com as chaves
+ * estrangeiras desligadas (senão o DROP da tabela antiga derrubaria as linhas
+ * referenciadas em cascata no meio do caminho).
+ */
+function allowMediaWithoutSourceFolder(database: Database.Database): void {
+  const colunas = database.prepare('PRAGMA table_info(media_files)').all() as {
+    name: string
+    notnull: number
+  }[]
+  const origem = colunas.find((coluna) => coluna.name === 'folder_source_id')
+  if (!origem || origem.notnull === 0) return
+
+  database.pragma('foreign_keys = OFF')
+  try {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE media_files_novo (
+          id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+          path                  TEXT NOT NULL UNIQUE,
+          filename              TEXT NOT NULL,
+          type                  TEXT NOT NULL CHECK (type IN ('video', 'image')),
+          folder_source_id      INTEGER REFERENCES source_folders(id) ON DELETE CASCADE,
+          organized             INTEGER NOT NULL DEFAULT 0 CHECK (organized IN (0, 1)),
+          discovered_at         TEXT NOT NULL,
+          original_path         TEXT,
+          organized_at          TEXT,
+          destination_folder_id INTEGER REFERENCES destination_folders(id),
+          favorited             INTEGER NOT NULL DEFAULT 0
+        );
+
+        INSERT INTO media_files_novo
+          (id, path, filename, type, folder_source_id, organized, discovered_at,
+           original_path, organized_at, destination_folder_id, favorited)
+        SELECT id, path, filename, type, folder_source_id, organized, discovered_at,
+               original_path, organized_at, destination_folder_id, favorited
+          FROM media_files;
+
+        DROP TABLE media_files;
+        ALTER TABLE media_files_novo RENAME TO media_files;
+
+        CREATE INDEX IF NOT EXISTS idx_media_folder      ON media_files (folder_source_id);
+        CREATE INDEX IF NOT EXISTS idx_media_organized   ON media_files (organized);
+        CREATE INDEX IF NOT EXISTS idx_media_destination ON media_files (destination_folder_id);
+      `)
+    })()
+  } finally {
+    database.pragma('foreign_keys = ON')
   }
 }
 
@@ -221,6 +284,57 @@ export function toggleFavorite(id: number): boolean {
 }
 
 /**
+ * Registra arquivos encontrados dentro das pastas de destino.
+ *
+ * Entram já como `organized = 1` e sem pasta de origem: eles nunca passaram
+ * pela fila do app — já estavam lá quando as pastas foram cadastradas, ou
+ * foram colocados por fora. Catalogar é o que os torna visíveis, porque o
+ * protocolo media:// só serve caminho que está nesta tabela.
+ *
+ * INSERT OR IGNORE + UNIQUE(path): o que o app já moveu para lá continua com o
+ * registro original, com o histórico de undo intacto.
+ */
+export function insertDestinationMedia(
+  files: ScannedFile[],
+  destinationFolderId: number | null,
+): number {
+  const insert = conn().prepare(
+    `INSERT OR IGNORE INTO media_files
+       (path, filename, type, folder_source_id, organized, discovered_at, destination_folder_id)
+     VALUES (?, ?, ?, NULL, 1, ?, ?)`,
+  )
+  const inserirTodos = conn().transaction((lote: ScannedFile[], quando: string) => {
+    let inseridos = 0
+    for (const file of lote) {
+      inseridos += insert.run(file.path, file.filename, file.type, quando, destinationFolderId)
+        .changes
+    }
+    return inseridos
+  })
+  return inserirTodos(files, new Date().toISOString())
+}
+
+/**
+ * A pasta de cada arquivo sai do próprio caminho: `path` menos `filename` menos
+ * a barra. É exato, e evita uma coluna a mais que teria de ser mantida em
+ * sincronia a cada movimentação.
+ */
+const DIRETORIO_SQL = "substr(path, 1, length(path) - length(filename) - 1)"
+
+/** Pastas que de fato contêm mídia organizada, com quantos itens cada uma tem. */
+export function listOrganizedFolders(): { dir: string; total: number }[] {
+  return conn()
+    .prepare(
+      `SELECT ${DIRETORIO_SQL} AS dir, COUNT(*) AS total
+         FROM media_files
+        WHERE organized = 1
+        GROUP BY dir
+        ORDER BY dir`,
+    )
+    .all() as { dir: string; total: number }[]
+}
+
+/**
  * Ids de tudo que já foi organizado, embaralhado pelo próprio SQLite.
  *
  * Devolve só os ids, não as linhas inteiras: com uma biblioteca grande, este é
@@ -232,12 +346,14 @@ export function toggleFavorite(id: number): boolean {
  * agrupar por pasta de destino — é isso que faz a revisão misturar itens de
  * pastas diferentes em vez de percorrer uma pasta de cada vez.
  */
-export function listOrganizedMediaIds(): number[] {
-  return (
-    conn()
-      .prepare('SELECT id FROM media_files WHERE organized = 1 ORDER BY RANDOM()')
-      .all() as { id: number }[]
-  ).map((row) => row.id)
+export function listOrganizedMediaIds(dir?: string): number[] {
+  // `dir` limita a uma pasta específica; sem ele, sorteia sobre todas.
+  const filtro = dir ? `AND ${DIRETORIO_SQL} = ?` : ''
+  const consulta = conn().prepare(
+    `SELECT id FROM media_files WHERE organized = 1 ${filtro} ORDER BY RANDOM()`,
+  )
+  const linhas = (dir ? consulta.all(dir) : consulta.all()) as { id: number }[]
+  return linhas.map((row) => row.id)
 }
 
 /**

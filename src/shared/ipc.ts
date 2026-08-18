@@ -12,6 +12,10 @@ export const IPC = {
   listUnorganizedMedia: 'media:list-unorganized',
   /** renderer -> main, com resposta: ids dos já organizados, em ordem aleatória */
   organizedMediaIds: 'media:organized-ids',
+  /** renderer -> main, com resposta: pastas que contêm mídia organizada */
+  organizedFolders: 'media:organized-folders',
+  /** renderer -> main, com resposta: cataloga o que já existe nas pastas de destino */
+  syncDestinationMedia: 'destinations:sync-media',
   /** renderer -> main, com resposta: detalhes de um lote de ids, na ordem pedida */
   mediaByIds: 'media:by-ids',
   /** renderer -> main, com resposta: pastas de destino, mais usadas recentemente primeiro */

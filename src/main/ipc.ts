@@ -7,6 +7,7 @@ import type {
   CreateDestinationResult,
   DestinationFolder,
   LibraryStats,
+  OrganizedFolder,
   MediaFile,
   OrganizeResult,
   RescanResult,
@@ -95,7 +96,46 @@ export function registerIpcHandlers(): void {
 
   // --- pastas de destino ---
 
-  ipcMain.handle(IPC.organizedMediaIds, (): number[] => db.listOrganizedMediaIds())
+  ipcMain.handle(IPC.organizedMediaIds, (_event, rawDir: unknown): number[] => {
+    const dir = typeof rawDir === 'string' && rawDir ? rawDir : undefined
+    return db.listOrganizedMediaIds(dir)
+  })
+
+  ipcMain.handle(IPC.organizedFolders, (): OrganizedFolder[] => db.listOrganizedFolders())
+
+  /**
+   * Varre as pastas de destino atrás de mídia que ainda não está no catálogo —
+   * arquivos que já estavam lá antes do app, ou postos ali por fora dele.
+   */
+  ipcMain.handle(IPC.syncDestinationMedia, async (event): Promise<RescanResult> => {
+    const pastas = db.listDestinationFolders()
+    // Só as raízes: varrer também as subpastas cadastradas repetiria o mesmo
+    // trabalho, já que a varredura é recursiva.
+    const raizes = pastas.filter(
+      (pasta) => !pastas.some((outra) => pasta.path.startsWith(outra.path + path.sep)),
+    )
+
+    let novos = 0
+    for (const raiz of raizes) {
+      const encontrados = await scanFolder(raiz.path, (filesFound, currentDir) => {
+        if (!event.sender.isDestroyed()) {
+          const progresso: ScanProgress = { folderPath: raiz.path, filesFound, currentDir }
+          event.sender.send(IPC.scanProgress, progresso)
+        }
+      })
+
+      // Cada arquivo é atribuído à pasta cadastrada mais profunda que o contém,
+      // para as contagens por pasta baterem com a árvore de destinos.
+      for (const arquivo of encontrados) {
+        const dono = pastas
+          .filter((pasta) => arquivo.path.startsWith(pasta.path + path.sep))
+          .sort((a, b) => b.path.length - a.path.length)[0]
+        novos += db.insertDestinationMedia([arquivo], dono?.id ?? raiz.id)
+      }
+    }
+
+    return { foldersScanned: raizes.length, newFiles: novos }
+  })
 
   ipcMain.handle(IPC.mediaByIds, (_event, rawIds: unknown): MediaFile[] => {
     if (!Array.isArray(rawIds)) throw new Error('lista de ids inválida')

@@ -28,12 +28,17 @@ export default function SettingsScreen({ stats, onStatsChanged, onBack }: Settin
     setRescanning(true)
     setRescanNotice(null)
     try {
-      const result = await window.api.rescanFolders()
+      // Origem e destino: a primeira alimenta a fila, a segunda faz aparecer na
+      // Revisão o que já estava dentro das pastas de destino antes do app.
+      const origem = await window.api.rescanFolders()
+      const destino = await window.api.syncDestinationMedia()
       onStatsChanged()
+      const novos = origem.newFiles + destino.newFiles
+      const pastas = origem.foldersScanned + destino.foldersScanned
       setRescanNotice(
-        result.newFiles === 0
-          ? `Nada novo em ${result.foldersScanned} pasta(s). Tudo já estava catalogado.`
-          : `${result.newFiles.toLocaleString('pt-BR')} arquivo(s) novo(s) em ${result.foldersScanned} pasta(s).`,
+        novos === 0
+          ? `Nada novo em ${pastas} pasta(s). Tudo já estava catalogado.`
+          : `${novos.toLocaleString('pt-BR')} arquivo(s) novo(s) em ${pastas} pasta(s).`,
       )
     } finally {
       setRescanning(false)
@@ -99,7 +104,7 @@ export default function SettingsScreen({ stats, onStatsChanged, onBack }: Settin
 
           <Section
             title="Sincronizar novamente"
-            description="Revarre as pastas de origem atrás de arquivos que apareceram depois do último escaneamento. Nada é duplicado."
+            description="Revarre as pastas de origem e as de destino atrás de arquivos que apareceram depois do último escaneamento. Nada é duplicado."
           >
             <div className="flex items-center gap-4">
               <button

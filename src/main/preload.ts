@@ -6,6 +6,7 @@ import type {
   DestinationFolder,
   LibraryStats,
   MediaFile,
+  OrganizedFolder,
   OrganizeResult,
   RescanResult,
   ScanProgress,
@@ -55,7 +56,15 @@ const api = {
    * Ids de tudo que já foi organizado, em ordem aleatória nova a cada chamada.
    * Só os ids: os detalhes vêm por lote em `mediaByIds`, conforme o feed rola.
    */
-  organizedMediaIds: (): Promise<number[]> => ipcRenderer.invoke(IPC.organizedMediaIds),
+  organizedMediaIds: (dir?: string): Promise<number[]> =>
+    ipcRenderer.invoke(IPC.organizedMediaIds, dir),
+
+  /** Pastas que contêm mídia organizada, com a contagem de cada uma. */
+  organizedFolders: (): Promise<OrganizedFolder[]> => ipcRenderer.invoke(IPC.organizedFolders),
+
+  /** Cataloga a mídia que já existe dentro das pastas de destino. */
+  syncDestinationMedia: (): Promise<RescanResult> =>
+    ipcRenderer.invoke(IPC.syncDestinationMedia),
 
   /** Detalhes de um lote de ids, na mesma ordem em que foram pedidos. */
   mediaByIds: (ids: number[]): Promise<MediaFile[]> => ipcRenderer.invoke(IPC.mediaByIds, ids),

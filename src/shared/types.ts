@@ -83,6 +83,13 @@ export interface LibraryStats {
   foldersUsed: number
 }
 
+/** Uma pasta que contém mídia já organizada, para o seletor da Revisão. */
+export interface OrganizedFolder {
+  /** caminho absoluto da pasta */
+  dir: string
+  total: number
+}
+
 export interface RescanResult {
   foldersScanned: number
   /** Só o que ainda não estava no catálogo */

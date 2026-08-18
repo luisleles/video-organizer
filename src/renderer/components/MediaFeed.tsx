@@ -5,7 +5,13 @@ import { percentOrganized } from './LibraryProgress'
 import DestinationDrawer from './DestinationDrawer'
 import Toast, { type ToastData } from './Toast'
 import { toMediaUrl } from '../../shared/media-url'
-import type { LibraryStats, MediaFile, OrganizeResult, UndoResult } from '../../shared/types'
+import type {
+  LibraryStats,
+  MediaFile,
+  OrganizeResult,
+  OrganizedFolder,
+  UndoResult,
+} from '../../shared/types'
 
 interface MediaFeedProps {
   /** `queue` é a fila principal (organizar tira o item da lista); `favorites`
@@ -100,8 +106,12 @@ export default function MediaFeed({
    * guarda estado de sessão nenhum.
    */
   const [reviewIds, setReviewIds] = useState<number[] | null>(null)
+  /** Pastas com mídia organizada, para o seletor da Revisão. */
+  const [folders, setFolders] = useState<OrganizedFolder[]>([])
+  /** Pasta escolhida na Revisão; string vazia = todas. */
+  const [folderFilter, setFolderFilter] = useState('')
 
-  const shuffleReview = useCallback(async () => {
+  const shuffleReview = useCallback(async (dir?: string) => {
     setItems(null)
     setReviewIds(null)
     // Volta ao topo antes de trocar a lista: manter o scroll no meio faria o
@@ -109,14 +119,61 @@ export default function MediaFeed({
     containerRef.current?.scrollTo({ top: 0 })
     setActiveIndex(0)
 
-    const ids = await window.api.organizedMediaIds()
+    const ids = await window.api.organizedMediaIds(dir || undefined)
     setReviewIds(ids)
     setItems(ids.length === 0 ? [] : await window.api.mediaByIds(ids.slice(0, REVIEW_PAGE_SIZE)))
   }, [])
 
+  /**
+   * Embaralha o que já está carregado, sem ir ao banco.
+   *
+   * Serve para a fila e para os favoritos: as duas listas são inteiras em
+   * memória, então reordenar aqui é instantâneo. A Revisão não usa isto —
+   * lá a ordem vem sorteada do banco, porque a lista é paginada e embaralhar
+   * só a primeira página deixaria o resto na ordem antiga.
+   */
+  const shuffleLoaded = useCallback(() => {
+    setItems((atual) => {
+      if (!atual || atual.length < 2) return atual
+      const copia = [...atual]
+      // Fisher-Yates: cada permutação com a mesma probabilidade. Um
+      // `sort(() => Math.random() - 0.5)` pareceria equivalente, mas produz
+      // distribuição enviesada e depende do algoritmo de ordenação do motor.
+      for (let i = copia.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[copia[i], copia[j]] = [copia[j]!, copia[i]!]
+      }
+      return copia
+    })
+    // Dois requestAnimationFrame antes de rolar: o primeiro espera o React
+    // pintar a lista já reordenada, o segundo espera o layout. Rolar antes
+    // disso não adianta — o scroll-snap do Chromium mantém o item ancorado
+    // grudado e traz a rolagem de volta atrás dele assim que a ordem muda,
+    // exatamente como acontecia ao pular um item.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        containerRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+        setActiveIndex(0)
+      }),
+    )
+  }, [])
+
+  const handleShuffle = useCallback(() => {
+    if (mode === 'review') void shuffleReview(folderFilter)
+    else shuffleLoaded()
+  }, [folderFilter, mode, shuffleLoaded, shuffleReview])
+
   useEffect(() => {
     if (mode === 'review') {
-      void shuffleReview()
+      // Varre as pastas de destino antes de sortear: assim entram também os
+      // arquivos que já estavam lá antes do app, ou que foram postos por fora
+      // dele. Sem isso a Revisão só mostraria o que o próprio app moveu.
+      void (async () => {
+        setItems(null)
+        await window.api.syncDestinationMedia()
+        setFolders(await window.api.organizedFolders())
+        await shuffleReview(folderFilter)
+      })()
       return
     }
     setItems(null)
@@ -463,10 +520,8 @@ export default function MediaFeed({
           break
         case 'e':
         case 'E':
-          if (mode === 'review') {
-            event.preventDefault()
-            void shuffleReview()
-          }
+          event.preventDefault()
+          handleShuffle()
           break
         case 's':
         case 'S':
@@ -582,6 +637,32 @@ export default function MediaFeed({
                 </p>
               </div>
 
+              {mode === 'review' && folders.length > 0 && (
+                <select
+                  value={folderFilter}
+                  onChange={(event) => {
+                    const dir = event.target.value
+                    setFolderFilter(dir)
+                    // Trocar de pasta já sorteia a nova seleção: é sempre o que
+                    // se quer em seguida, e poupa um clique em embaralhar logo
+                    // depois de escolher.
+                    void shuffleReview(dir)
+                  }}
+                  title="Ver só uma pasta de destino"
+                  aria-label="Ver só uma pasta de destino"
+                  className="rounded-card border-line-strong text-fg pointer-events-auto ml-auto max-w-64 shrink-0 truncate border bg-black/60 px-3 py-2.5 text-sm backdrop-blur"
+                >
+                  <option value="">
+                    Todas as pastas ({folders.reduce((soma, pasta) => soma + pasta.total, 0)})
+                  </option>
+                  {folders.map((pasta) => (
+                    <option key={pasta.dir} value={pasta.dir}>
+                      {basename(pasta.dir)} ({pasta.total})
+                    </option>
+                  ))}
+                </select>
+              )}
+
               <div className="rounded-card shrink-0 bg-black/60 px-4 py-2.5 text-sm tabular-nums backdrop-blur">
                 {mode === 'queue' ? (
                   <>
@@ -596,7 +677,9 @@ export default function MediaFeed({
                     {/* Total da ordem sorteada, não do que já foi carregado —
                         senão o número cresceria a cada lote buscado. */}
                     {activeIndex + 1} de {reviewIds?.length ?? items.length}
-                    <span className="text-fg-subtle"> organizados</span>
+                    <span className="text-fg-subtle">
+                      {folderFilter ? ` em ${basename(folderFilter)}` : ' organizados'}
+                    </span>
                   </>
                 ) : (
                   <>
@@ -657,15 +740,13 @@ export default function MediaFeed({
             {mode === 'queue' && (
               <RailButton onClick={handleSkip} disabled={busy} icon="skip" label="Pular" hint="S" />
             )}
-            {mode === 'review' && (
-              <RailButton
-                onClick={() => void shuffleReview()}
-                disabled={busy}
-                icon="shuffle"
-                label="Embaralhar"
-                hint="E"
-              />
-            )}
+            <RailButton
+              onClick={handleShuffle}
+              disabled={busy}
+              icon="shuffle"
+              label="Embaralhar"
+              hint="E"
+            />
             {active?.type === 'video' && (
               <RailButton
                 onClick={() => setMuted((current) => !current)}
@@ -784,6 +865,173 @@ const MIN_ZOOM = 1
 const MAX_ZOOM = 4
 const ZOOM_STEP = 0.5
 
+/**
+ * Zoom e arraste, compartilhado por imagem e vídeo.
+ *
+ * Era código interno do slide de imagem; virou hook quando o vídeo passou a
+ * ter zoom também — a alternativa seria manter duas cópias da mesma mecânica
+ * de clamp, arraste e Ctrl+scroll, que divergiriam na primeira correção.
+ *
+ * Devolve `bind`, com os handlers de ponteiro para pendurar na mídia, e o
+ * `transform` pronto para o style.
+ */
+function useZoomPan(active: boolean) {
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
+  const dragStart = useRef({ pointerX: 0, pointerY: 0, panX: 0, panY: 0 })
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // "Trocar de item" é isto: sempre que este slide volta a ser o ativo (seja
+  // porque acabou de entrar no radar de montagem, seja porque o usuário voltou
+  // rolando pra ele), o zoom começa do zero — não persiste de uma visita à
+  // mídia para a próxima.
+  useEffect(() => {
+    if (active) {
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+    }
+  }, [active])
+
+  function clampPan(nextPan: { x: number; y: number }, z: number) {
+    // Não é um cálculo exato dos limites reais da mídia (dependeria de medir o
+    // retângulo renderizado, que muda com o fit escolhido) — é uma margem
+    // generosa que cresce com o zoom, só para não deixar arrastar pra bem
+    // longe da tela.
+    const maxOffset = (z - 1) * 160
+    return {
+      x: Math.min(maxOffset, Math.max(-maxOffset, nextPan.x)),
+      y: Math.min(maxOffset, Math.max(-maxOffset, nextPan.y)),
+    }
+  }
+
+  // Só usa a forma funcional do setState (nunca lê `zoom`/`pan` do escopo por
+  // fora): assim esta função continua correta mesmo chamada a partir de um
+  // listener nativo registrado uma vez só (ver useEffect logo abaixo), sem
+  // depender de capturar o valor mais recente de `zoom` num closure.
+  const applyZoom = useCallback((change: number | ((current: number) => number)) => {
+    setZoom((current) => {
+      const nextZoom = typeof change === 'function' ? change(current) : change
+      const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
+      setPan((currentPan) => (clamped === 1 ? { x: 0, y: 0 } : clampPan(currentPan, clamped)))
+      return clamped
+    })
+  }, [])
+
+  // Listener nativo, não o onWheel sintético do React: o React registra wheel
+  // como passivo por padrão, e nesse modo preventDefault() é ignorado — o
+  // Ctrl+scroll continuaria navegando o feed em vez de só dar zoom na mídia.
+  useEffect(() => {
+    const element = wrapperRef.current
+    if (!element) return
+
+    function handleWheel(event: WheelEvent) {
+      // Sem o modificador, o scroll é do feed (trocar de item) — só intercepta
+      // com Ctrl, senão rolar a roda numa mídia nunca navegaria.
+      if (!event.ctrlKey) return
+      event.preventDefault()
+      applyZoom((current) => current + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP))
+    }
+
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => element.removeEventListener('wheel', handleWheel)
+  }, [applyZoom])
+
+  /** true se o ponteiro chegou a arrastar — o vídeo usa para não confundir
+   *  arraste com clique de play/pause. */
+  const arrastou = useRef(false)
+
+  const bind = {
+    onPointerDown(event: React.PointerEvent<HTMLElement>) {
+      // Clicar na própria mídia nunca deve fechar o painel lateral — vale mesmo
+      // sem zoom, quando o clique não inicia arraste nenhum (early return).
+      event.stopPropagation()
+      arrastou.current = false
+      if (zoom <= 1) return
+      setDragging(true)
+      dragStart.current = {
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        panX: pan.x,
+        panY: pan.y,
+      }
+      event.currentTarget.setPointerCapture(event.pointerId)
+    },
+    onPointerMove(event: React.PointerEvent<HTMLElement>) {
+      if (!dragging) return
+      const dx = event.clientX - dragStart.current.pointerX
+      const dy = event.clientY - dragStart.current.pointerY
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) arrastou.current = true
+      setPan(clampPan({ x: dragStart.current.panX + dx, y: dragStart.current.panY + dy }, zoom))
+    },
+    onPointerUp(event: React.PointerEvent<HTMLElement>) {
+      setDragging(false)
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    },
+  }
+
+  return {
+    zoom,
+    applyZoom,
+    wrapperRef,
+    bind,
+    dragging,
+    arrastou,
+    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+    cursor: zoom > 1 ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : '',
+  }
+}
+
+/** Os três botões de zoom, no canto inferior esquerdo, sobre o de tela cheia. */
+function ZoomControls({
+  zoom,
+  applyZoom,
+}: {
+  zoom: number
+  applyZoom: (change: number) => void
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute bottom-20 left-6 flex items-center gap-1.5"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={() => applyZoom(zoom - ZOOM_STEP)}
+        disabled={zoom <= MIN_ZOOM}
+        title="Diminuir zoom"
+        aria-label="Diminuir zoom"
+        className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white/90 backdrop-blur transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <Icon name="zoomOut" className="h-4 w-4" />
+      </button>
+
+      {zoom !== 1 && (
+        <button
+          type="button"
+          onClick={() => applyZoom(1)}
+          title="Redefinir zoom"
+          aria-label="Redefinir zoom"
+          className="pointer-events-auto rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium tabular-nums text-white/90 backdrop-blur transition hover:bg-black/80"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={() => applyZoom(zoom + ZOOM_STEP)}
+        disabled={zoom >= MAX_ZOOM}
+        title="Aumentar zoom"
+        aria-label="Aumentar zoom"
+        className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white/90 backdrop-blur transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <Icon name="zoomIn" className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
 function ImageSlide({
   file,
   active,
@@ -798,88 +1046,7 @@ function ImageSlide({
   // Aparece só depois de decodificada: sem isso o navegador pinta a imagem
   // linha a linha enquanto carrega, e o feed pisca a cada item.
   const [loaded, setLoaded] = useState(false)
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [dragging, setDragging] = useState(false)
-  const dragStart = useRef({ pointerX: 0, pointerY: 0, panX: 0, panY: 0 })
-  const wrapperRef = useRef<HTMLDivElement>(null)
-
-  // "Trocar de item" é isto: sempre que esta imagem volta a ser a ativa (seja
-  // porque acabou de entrar no radar de montagem, seja porque o usuário voltou
-  // rolando pra ela), o zoom começa do zero — não persiste de uma visita à
-  // imagem para a próxima.
-  useEffect(() => {
-    if (active) {
-      setZoom(1)
-      setPan({ x: 0, y: 0 })
-    }
-  }, [active])
-
-  function clampPan(nextPan: { x: number; y: number }, z: number) {
-    // Não é um cálculo exato dos limites reais da imagem (dependeria de medir
-    // o retângulo renderizado, que muda com o fit escolhido) — é uma margem
-    // generosa que cresce com o zoom, só para não deixar arrastar a imagem
-    // pra bem longe da tela.
-    const maxOffset = (z - 1) * 160
-    return {
-      x: Math.min(maxOffset, Math.max(-maxOffset, nextPan.x)),
-      y: Math.min(maxOffset, Math.max(-maxOffset, nextPan.y)),
-    }
-  }
-
-  // Só usa a forma funcional do setState (nunca lê `zoom`/`pan` do escopo por
-  // fora): assim esta função continua correta mesmo chamada a partir de um
-  // listener nativo registrado uma vez só (ver useEffect logo abaixo), sem
-  // depender de capturar o valor mais recente de `zoom` num closure.
-  function applyZoom(change: number | ((current: number) => number)) {
-    setZoom((current) => {
-      const nextZoom = typeof change === 'function' ? change(current) : change
-      const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
-      setPan((currentPan) => (clamped === 1 ? { x: 0, y: 0 } : clampPan(currentPan, clamped)))
-      return clamped
-    })
-  }
-
-  // Listener nativo, não o onWheel sintético do React: o React registra wheel
-  // como passivo por padrão, e nesse modo preventDefault() é ignorado — o
-  // Ctrl+scroll continuaria navegando o feed em vez de só dar zoom na imagem.
-  useEffect(() => {
-    const element = wrapperRef.current
-    if (!element) return
-
-    function handleWheel(event: WheelEvent) {
-      // Sem o modificador, o scroll é do feed (trocar de item) — só
-      // intercepta com Ctrl, senão rolar a roda numa imagem nunca navegaria.
-      if (!event.ctrlKey) return
-      event.preventDefault()
-      applyZoom((current) => current + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP))
-    }
-
-    element.addEventListener('wheel', handleWheel, { passive: false })
-    return () => element.removeEventListener('wheel', handleWheel)
-  }, [])
-
-  function handlePointerDown(event: React.PointerEvent<HTMLImageElement>) {
-    // Clicar na própria mídia nunca deve fechar o painel lateral — vale mesmo
-    // sem zoom, quando o clique não inicia arraste nenhum (early return abaixo).
-    event.stopPropagation()
-    if (zoom <= 1) return
-    setDragging(true)
-    dragStart.current = { pointerX: event.clientX, pointerY: event.clientY, panX: pan.x, panY: pan.y }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  function handlePointerMove(event: React.PointerEvent<HTMLImageElement>) {
-    if (!dragging) return
-    const dx = event.clientX - dragStart.current.pointerX
-    const dy = event.clientY - dragStart.current.pointerY
-    setPan(clampPan({ x: dragStart.current.panX + dx, y: dragStart.current.panY + dy }, zoom))
-  }
-
-  function handlePointerUp(event: React.PointerEvent<HTMLImageElement>) {
-    setDragging(false)
-    event.currentTarget.releasePointerCapture(event.pointerId)
-  }
+  const { zoom, applyZoom, wrapperRef, bind, transform, cursor } = useZoomPan(active)
 
   return (
     <div
@@ -891,63 +1058,18 @@ function ImageSlide({
         alt={file.filename}
         onLoad={() => setLoaded(true)}
         onError={onFail}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+        {...bind}
+        style={{ transform }}
         className={`transition-opacity duration-300 ${
           fitMode === 'fill' ? 'h-full w-full object-cover' : 'max-h-full max-w-full object-contain'
-        } ${loaded ? 'opacity-100' : 'opacity-0'} ${
-          zoom > 1 ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : ''
-        }`}
+        } ${loaded ? 'opacity-100' : 'opacity-0'} ${cursor}`}
       />
 
-      {/* Controles de zoom — só existem pra imagem; vídeo já tem seek/pausa.
-          Empilhados sobre o botão de tela cheia (mesmo canto), não no centro
-          embaixo: ali é onde o toast de organizar aparece. stopPropagation no
-          contêiner cobre os três botões de uma vez: nenhum deve fechar o
-          painel lateral ao ser clicado. */}
-      <div
-        className="pointer-events-none absolute bottom-20 left-6 flex items-center gap-1.5"
-        onPointerDown={(event) => event.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={() => applyZoom(zoom - ZOOM_STEP)}
-          disabled={zoom <= MIN_ZOOM}
-          title="Diminuir zoom"
-          aria-label="Diminuir zoom"
-          className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white/90 backdrop-blur transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Icon name="zoomOut" className="h-4 w-4" />
-        </button>
-
-        {zoom !== 1 && (
-          <button
-            type="button"
-            onClick={() => applyZoom(1)}
-            title="Redefinir zoom"
-            aria-label="Redefinir zoom"
-            className="pointer-events-auto rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium tabular-nums text-white/90 backdrop-blur transition hover:bg-black/80"
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => applyZoom(zoom + ZOOM_STEP)}
-          disabled={zoom >= MAX_ZOOM}
-          title="Aumentar zoom"
-          aria-label="Aumentar zoom"
-          className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white/90 backdrop-blur transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Icon name="zoomIn" className="h-4 w-4" />
-        </button>
-      </div>
+      <ZoomControls zoom={zoom} applyZoom={applyZoom} />
     </div>
   )
 }
+
 
 /** Quanto tempo o ícone de play/pause fica visível no centro antes de sumir. */
 const PLAYBACK_FEEDBACK_MS = 650
@@ -967,6 +1089,7 @@ function VideoSlide({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const barRef = useRef<HTMLDivElement>(null)
+  const { zoom, applyZoom, wrapperRef, bind, transform, cursor, arrastou } = useZoomPan(active)
   const [ready, setReady] = useState(false)
   const [duration, setDuration] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
@@ -1095,8 +1218,14 @@ function VideoSlide({
     // fecha ao ouvir pointerdown fora de si, que dispara antes do click —
     // sem isso, clicar no vídeo fecharia o painel antes de pausar/retomar.
     <div
-      className="relative flex h-full w-full items-center justify-center"
-      onClick={togglePlayback}
+      ref={wrapperRef}
+      className="relative flex h-full w-full items-center justify-center overflow-hidden"
+      onClick={() => {
+        // Com zoom, arrastar o vídeo para deslocá-lo termina num clique — sem
+        // esta guarda, todo arrasto pausaria ou retomaria a reprodução.
+        if (arrastou.current) return
+        togglePlayback()
+      }}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <video
@@ -1116,9 +1245,11 @@ function VideoSlide({
         }}
         onLoadedData={() => setReady(true)}
         onError={onFail}
+        {...bind}
+        style={{ transform }}
         className={`transition-opacity duration-300 ${
           fitMode === 'fill' ? 'h-full w-full object-cover' : 'max-h-full max-w-full object-contain'
-        } ${ready ? 'opacity-100' : 'opacity-0'}`}
+        } ${ready ? 'opacity-100' : 'opacity-0'} ${cursor}`}
       />
 
       {feedback && (
@@ -1129,6 +1260,8 @@ function VideoSlide({
           <Icon name={feedback.icon} filled className="h-7 w-7 text-white" />
         </div>
       )}
+
+      <ZoomControls zoom={zoom} applyZoom={applyZoom} />
 
       {/* Grupo nomeado (não o `group` genérico, pra não colidir com outro uso
           por aí): o rótulo de tempo mora fora da faixa de clique da barra, mas

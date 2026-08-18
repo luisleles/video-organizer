@@ -10,6 +10,10 @@ export const IPC = {
   removeFolder: 'folders:remove',
   /** renderer -> main, com resposta: fila do feed (o que ainda não foi organizado) */
   listUnorganizedMedia: 'media:list-unorganized',
+  /** renderer -> main, com resposta: ids dos já organizados, em ordem aleatória */
+  organizedMediaIds: 'media:organized-ids',
+  /** renderer -> main, com resposta: detalhes de um lote de ids, na ordem pedida */
+  mediaByIds: 'media:by-ids',
   /** renderer -> main, com resposta: pastas de destino, mais usadas recentemente primeiro */
   listDestinations: 'destinations:list',
   /** renderer -> main, com resposta: só as pastas de destino que não estão dentro de outra (raízes da árvore) */

@@ -10,8 +10,9 @@ import type { LibraryStats, MediaFile, OrganizeResult, UndoResult } from '../../
 interface MediaFeedProps {
   /** `queue` é a fila principal (organizar tira o item da lista); `favorites`
    *  mostra só favoritados e organizar não tira nada daqui — só atualiza o
-   *  caminho do arquivo. */
-  mode: 'queue' | 'favorites'
+   *  caminho do arquivo; `review` é a revisão aleatória do que já foi
+   *  organizado, e se comporta como `favorites` quanto a não esvaziar a lista. */
+  mode: 'queue' | 'favorites' | 'review'
   stats: LibraryStats | null
   onStatsChanged: () => void
   /** "Tamanho original" (contain) ou "Preencher tela" (cover) — controlado de
@@ -34,6 +35,18 @@ const MOUNT_RADIUS = 1
 
 /** Tempo da animação de saída antes de o item deixar a lista. */
 const EXIT_MS = 220
+
+/**
+ * Itens buscados por vez na revisão aleatória.
+ *
+ * A ordem sorteada chega inteira (só ids, baratos), mas os detalhes vêm em
+ * lotes conforme o feed rola: com uma biblioteca grande, trazer tudo de uma vez
+ * seria carregar milhares de linhas que o usuário talvez nunca role até lá.
+ */
+const REVIEW_PAGE_SIZE = 24
+
+/** A quantos itens do fim da lista carregada o próximo lote é buscado. */
+const REVIEW_PREFETCH = 5
 
 /**
  * Tempo da transição de largura do painel lateral — precisa bater com a
@@ -80,12 +93,57 @@ export default function MediaFeed({
   // Contador só para dar uma key nova a cada toast e reiniciar o cronômetro dele.
   const toastCounter = useRef(0)
 
+  /**
+   * Ordem sorteada da revisão: a lista completa de ids, na sequência em que
+   * devem aparecer. Fica aqui (e não no processo main) para o embaralhamento
+   * ser explícito — quem pede uma ordem nova é a interface, e o main não
+   * guarda estado de sessão nenhum.
+   */
+  const [reviewIds, setReviewIds] = useState<number[] | null>(null)
+
+  const shuffleReview = useCallback(async () => {
+    setItems(null)
+    setReviewIds(null)
+    // Volta ao topo antes de trocar a lista: manter o scroll no meio faria o
+    // feed abrir a nova ordem já no meio dela.
+    containerRef.current?.scrollTo({ top: 0 })
+    setActiveIndex(0)
+
+    const ids = await window.api.organizedMediaIds()
+    setReviewIds(ids)
+    setItems(ids.length === 0 ? [] : await window.api.mediaByIds(ids.slice(0, REVIEW_PAGE_SIZE)))
+  }, [])
+
   useEffect(() => {
+    if (mode === 'review') {
+      void shuffleReview()
+      return
+    }
     setItems(null)
     void (mode === 'queue' ? window.api.listUnorganizedMedia() : window.api.listFavorites()).then(
       setItems,
     )
-  }, [mode])
+  }, [mode, shuffleReview])
+
+  // Busca o lote seguinte quando o usuário chega perto do fim do que já foi
+  // carregado. A condição de `activeIndex` também impede laço infinito: sem
+  // ela, cada lote acrescentado dispararia o efeito de novo imediatamente.
+  useEffect(() => {
+    if (mode !== 'review' || !items || !reviewIds) return
+    if (items.length >= reviewIds.length) return
+    if (activeIndex < items.length - REVIEW_PREFETCH) return
+
+    let cancelado = false
+    void window.api
+      .mediaByIds(reviewIds.slice(items.length, items.length + REVIEW_PAGE_SIZE))
+      .then((lote) => {
+        if (cancelado || lote.length === 0) return
+        setItems((atual) => (atual ? [...atual, ...lote] : lote))
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [mode, items, reviewIds, activeIndex])
 
   // Quem está em foco é decidido pelo Intersection Observer, não pela posição do
   // scroll: o observer é o único que sabe a verdade quando o snap ainda está
@@ -403,6 +461,13 @@ export default function MediaFeed({
           event.preventDefault()
           openDrawer()
           break
+        case 'e':
+        case 'E':
+          if (mode === 'review') {
+            event.preventDefault()
+            void shuffleReview()
+          }
+          break
         case 's':
         case 'S':
           event.preventDefault()
@@ -445,8 +510,10 @@ export default function MediaFeed({
     handleFavorite,
     handleShowInFolder,
     handleSkip,
+    mode,
     onToggleFitMode,
     openDrawer,
+    shuffleReview,
   ])
 
   if (items === null) return <FeedSkeleton />
@@ -524,6 +591,13 @@ export default function MediaFeed({
                     <span className="text-fg-subtle"> organizado · </span>
                     {activeIndex + 1} de {items.length} restantes
                   </>
+                ) : mode === 'review' ? (
+                  <>
+                    {/* Total da ordem sorteada, não do que já foi carregado —
+                        senão o número cresceria a cada lote buscado. */}
+                    {activeIndex + 1} de {reviewIds?.length ?? items.length}
+                    <span className="text-fg-subtle"> organizados</span>
+                  </>
                 ) : (
                   <>
                     {activeIndex + 1} de {items.length}
@@ -582,6 +656,15 @@ export default function MediaFeed({
             />
             {mode === 'queue' && (
               <RailButton onClick={handleSkip} disabled={busy} icon="skip" label="Pular" hint="S" />
+            )}
+            {mode === 'review' && (
+              <RailButton
+                onClick={() => void shuffleReview()}
+                disabled={busy}
+                icon="shuffle"
+                label="Embaralhar"
+                hint="E"
+              />
             )}
             {active?.type === 'video' && (
               <RailButton

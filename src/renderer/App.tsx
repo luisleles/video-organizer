@@ -3,6 +3,7 @@ import LibraryProgress from './components/LibraryProgress'
 import NavRail, { type Screen } from './components/NavRail'
 import FavoritesScreen from './screens/FavoritesScreen'
 import FeedScreen from './screens/FeedScreen'
+import ReviewScreen from './screens/ReviewScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import type { LibraryStats } from '../shared/types'
 
@@ -57,6 +58,16 @@ export default function App() {
 
         {screen === 'favorites' && (
           <FavoritesScreen
+            stats={stats}
+            onStatsChanged={refreshStats}
+            onOpenSettings={() => setScreen('settings')}
+            fitMode={fitMode}
+            onToggleFitMode={toggleFitMode}
+          />
+        )}
+
+        {screen === 'review' && (
+          <ReviewScreen
             stats={stats}
             onStatsChanged={refreshStats}
             onOpenSettings={() => setScreen('settings')}

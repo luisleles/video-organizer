@@ -21,6 +21,9 @@ import { scanFolder } from './scanner'
 
 const ORGANIZATION_ROOT_KEY = 'organizationRoot'
 
+/** Limite de ids por chamada de `mediaByIds` — ver o comentário no handler. */
+const MAX_IDS_POR_LOTE = 200
+
 /**
  * Registra tudo que o renderer pode pedir ao main. Esta é a superfície de ataque
  * do app: cada handler aqui é uma porta que o código da interface pode abrir.
@@ -91,6 +94,19 @@ export function registerIpcHandlers(): void {
   })
 
   // --- pastas de destino ---
+
+  ipcMain.handle(IPC.organizedMediaIds, (): number[] => db.listOrganizedMediaIds())
+
+  ipcMain.handle(IPC.mediaByIds, (_event, rawIds: unknown): MediaFile[] => {
+    if (!Array.isArray(rawIds)) throw new Error('lista de ids inválida')
+    // Teto no tamanho do lote: cada id vira um placeholder no SQL, e o SQLite
+    // tem limite de variáveis por consulta. O feed pede de 24 em 24.
+    if (rawIds.length > MAX_IDS_POR_LOTE) {
+      throw new Error(`lote grande demais: ${rawIds.length} (máximo ${MAX_IDS_POR_LOTE})`)
+    }
+    const ids = rawIds.map((id) => requireId(id, 'id do arquivo'))
+    return db.getMediaByIds(ids)
+  })
 
   ipcMain.handle(IPC.listDestinations, (): DestinationFolder[] => db.listDestinationFolders())
 

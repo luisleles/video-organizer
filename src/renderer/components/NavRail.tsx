@@ -1,6 +1,6 @@
 import Icon, { type IconName } from './Icon'
 
-export type Screen = 'feed' | 'favorites' | 'settings'
+export type Screen = 'feed' | 'favorites' | 'review' | 'settings'
 
 interface NavRailProps {
   screen: Screen
@@ -10,6 +10,7 @@ interface NavRailProps {
 const ITEMS: { screen: Screen; icon: IconName; label: string }[] = [
   { screen: 'feed', icon: 'home', label: 'Início' },
   { screen: 'favorites', icon: 'heart', label: 'Favoritos' },
+  { screen: 'review', icon: 'shuffle', label: 'Revisão' },
   { screen: 'settings', icon: 'settings', label: 'Configurações' },
 ]
 

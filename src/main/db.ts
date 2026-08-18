@@ -221,6 +221,48 @@ export function toggleFavorite(id: number): boolean {
 }
 
 /**
+ * Ids de tudo que já foi organizado, embaralhado pelo próprio SQLite.
+ *
+ * Devolve só os ids, não as linhas inteiras: com uma biblioteca grande, este é
+ * o único ponto que precisa varrer a tabela toda, e um array de inteiros é
+ * barato de montar e de trafegar pelo IPC. Os detalhes vêm depois, por lote,
+ * conforme o feed rola.
+ *
+ * ORDER BY RANDOM() sorteia sobre TODAS as linhas com organized = 1, sem
+ * agrupar por pasta de destino — é isso que faz a revisão misturar itens de
+ * pastas diferentes em vez de percorrer uma pasta de cada vez.
+ */
+export function listOrganizedMediaIds(): number[] {
+  return (
+    conn()
+      .prepare('SELECT id FROM media_files WHERE organized = 1 ORDER BY RANDOM()')
+      .all() as { id: number }[]
+  ).map((row) => row.id)
+}
+
+/**
+ * Detalhes de um lote de ids, preservando a ordem em que foram pedidos.
+ *
+ * O SQL devolve as linhas em ordem arbitrária, então a ordem é restaurada aqui
+ * — sem isso o embaralhamento seria desfeito a cada página carregada.
+ */
+export function getMediaByIds(ids: number[]): MediaFile[] {
+  if (ids.length === 0) return []
+
+  const placeholders = ids.map(() => '?').join(', ')
+  const rows = conn()
+    .prepare(
+      `SELECT id, path, filename, type, discovered_at AS discoveredAt, favorited
+         FROM media_files
+        WHERE id IN (${placeholders})`,
+    )
+    .all(...ids) as MediaFileRow[]
+
+  const porId = new Map(rows.map((row) => [row.id, toMediaFile(row)]))
+  return ids.map((id) => porId.get(id)).filter((item): item is MediaFile => item !== undefined)
+}
+
+/**
  * Usado pelo protocolo media:// como allowlist. Roda a cada requisição do
  * <video> (incluindo cada Range), então precisa ser barato: `path` é UNIQUE,
  * logo indexado, e a consulta é in-process — custa microssegundos.

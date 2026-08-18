@@ -51,6 +51,15 @@ const api = {
   toggleFavorite: (mediaId: number): Promise<boolean> =>
     ipcRenderer.invoke(IPC.toggleFavorite, mediaId),
 
+  /**
+   * Ids de tudo que já foi organizado, em ordem aleatória nova a cada chamada.
+   * Só os ids: os detalhes vêm por lote em `mediaByIds`, conforme o feed rola.
+   */
+  organizedMediaIds: (): Promise<number[]> => ipcRenderer.invoke(IPC.organizedMediaIds),
+
+  /** Detalhes de um lote de ids, na mesma ordem em que foram pedidos. */
+  mediaByIds: (ids: number[]): Promise<MediaFile[]> => ipcRenderer.invoke(IPC.mediaByIds, ids),
+
   /** Pastas de destino, mais recentemente usadas primeiro. */
   listDestinations: (): Promise<DestinationFolder[]> => ipcRenderer.invoke(IPC.listDestinations),
 

@@ -16,6 +16,13 @@ import type { LibraryStats } from '../shared/types'
 export default function App() {
   const [screen, setScreen] = useState<Screen>('feed')
   const [stats, setStats] = useState<LibraryStats | null>(null)
+  // Vive aqui, não dentro do feed: é "global da sessão" de propósito — trocar
+  // de tela e voltar não deve resetar pra "tamanho original" no meio do uso.
+  const [fitMode, setFitMode] = useState<'original' | 'fill'>('original')
+  const toggleFitMode = useCallback(
+    () => setFitMode((current) => (current === 'original' ? 'fill' : 'original')),
+    [],
+  )
 
   // As estatísticas vivem aqui porque três telas as mostram e duas as alteram.
   // Cada tela recarregando por conta própria daria números divergentes na mesma
@@ -43,6 +50,8 @@ export default function App() {
             stats={stats}
             onStatsChanged={refreshStats}
             onOpenSettings={() => setScreen('settings')}
+            fitMode={fitMode}
+            onToggleFitMode={toggleFitMode}
           />
         )}
 
@@ -51,6 +60,8 @@ export default function App() {
             stats={stats}
             onStatsChanged={refreshStats}
             onOpenSettings={() => setScreen('settings')}
+            fitMode={fitMode}
+            onToggleFitMode={toggleFitMode}
           />
         )}
 

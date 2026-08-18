@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { IPC } from '../shared/ipc'
@@ -261,6 +261,25 @@ export function registerIpcHandlers(): void {
         ? { status: 'error', message: 'Não há espaço livre no disco de origem' }
         : (result as UndoResult)
     }
+  })
+
+  // --- gerenciador de arquivos do sistema ---
+
+  ipcMain.handle(IPC.showItemInFolder, (_event, rawPath: unknown): void => {
+    // Só abre o gerenciador de arquivos num item que o próprio catálogo
+    // conhece — o mesmo allowlist que o protocolo media:// usa, para não virar
+    // uma forma de o renderer apontar o Explorer/Nautilus para caminho arbitrário.
+    if (typeof rawPath !== 'string' || !path.isAbsolute(rawPath)) return
+    if (!db.isCatalogued(rawPath)) return
+    shell.showItemInFolder(rawPath)
+  })
+
+  ipcMain.handle(IPC.openPath, async (_event, rawPath: unknown): Promise<void> => {
+    // Aqui não dá pra exigir "catalogado": o alvo é uma pasta de destino (ou
+    // uma subpasta real ainda não cadastrada), não um arquivo de mídia. Só
+    // valida a forma do caminho antes de repassar ao SO.
+    if (typeof rawPath !== 'string' || !path.isAbsolute(rawPath)) return
+    await shell.openPath(rawPath)
   })
 }
 

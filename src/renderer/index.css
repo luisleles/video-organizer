@@ -59,6 +59,21 @@ body {
   color: var(--color-fg);
 }
 
+/*
+ * Reforço explícito para o elemento em tela cheia (o botão de tela cheia do
+ * feed usa requestFullscreen() num <div>, não na janela): o Chromium já
+ * aplica isso por padrão via folha de estilo interna do :fullscreen, mas
+ * fixar aqui com unidades de viewport (não % herdado) e !important garante
+ * que ele realmente acompanhe o tamanho da janela mesmo se essa sincronização
+ * automática atrasar ou não disparar direito em algum ambiente Linux
+ * específico — sem isso o elemento ficaria preso no tamanho de antes da
+ * janela crescer.
+ */
+:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -79,9 +94,24 @@ body {
   }
 }
 
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
+/* Ícone de play/pause que pisca no centro do vídeo ao clicar. A limpeza do
+   estado no React é feita por timeout, não por onAnimationEnd — por isso esta
+   animação pode entrar na lista de prefers-reduced-motion sem risco de deixar
+   o ícone preso na tela. */
+@keyframes icon-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -109,8 +139,8 @@ body {
   animation: rise-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.animate-slide-in-right {
-  animation: slide-in-right 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+.animate-icon-flash {
+  animation: icon-flash 650ms ease-out;
 }
 
 .animate-pulse-soft {
@@ -125,10 +155,10 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
   .animate-slide-up,
-  .animate-slide-in-right,
   .animate-rise-in,
   .animate-pulse-soft,
-  .animate-spin-slow {
+  .animate-spin-slow,
+  .animate-icon-flash {
     animation: none;
   }
 }

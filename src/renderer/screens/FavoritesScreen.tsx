@@ -5,6 +5,8 @@ interface FavoritesScreenProps {
   stats: LibraryStats | null
   onStatsChanged: () => void
   onOpenSettings: () => void
+  fitMode: 'original' | 'fill'
+  onToggleFitMode: () => void
 }
 
 /**
@@ -12,12 +14,19 @@ interface FavoritesScreenProps {
  * tela inicial, então dá pra organizar direto daqui também. Favoritar é
  * independente de organizar: mover um arquivo aqui não o tira desta lista.
  */
-export default function FavoritesScreen({ stats, onStatsChanged }: FavoritesScreenProps) {
+export default function FavoritesScreen({
+  stats,
+  onStatsChanged,
+  fitMode,
+  onToggleFitMode,
+}: FavoritesScreenProps) {
   return (
     <MediaFeed
       mode="favorites"
       stats={stats}
       onStatsChanged={onStatsChanged}
+      fitMode={fitMode}
+      onToggleFitMode={onToggleFitMode}
       emptyState={<EmptyFavorites />}
     />
   )

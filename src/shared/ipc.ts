@@ -38,4 +38,8 @@ export const IPC = {
   listFavorites: 'media:list-favorites',
   /** main -> renderer, sem resposta: progresso do escaneamento em andamento */
   scanProgress: 'scan:progress',
+  /** renderer -> main, com resposta: abre o gerenciador de arquivos com o item selecionado */
+  showItemInFolder: 'shell:show-item-in-folder',
+  /** renderer -> main, com resposta: abre uma pasta no gerenciador de arquivos */
+  openPath: 'shell:open-path',
 } as const

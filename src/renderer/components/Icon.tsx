@@ -8,6 +8,10 @@
 const PATHS = {
   folder:
     'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z',
+  // Pasta expandida na árvore: a mesma aba do topo, mas com a frente aberta
+  // num trapézio em vez de um retângulo fechado.
+  folderOpen:
+    'M3.75 9.78c.11-.02.23-.03.34-.03h15.8c.12 0 .23.01.35.03m-16.5 0a2.25 2.25 0 0 0-1.88 2.54l.86 6a2.25 2.25 0 0 0 2.22 1.93h13.05a2.25 2.25 0 0 0 2.23-1.93l.86-6a2.25 2.25 0 0 0-1.89-2.54m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.88a1.5 1.5 0 0 1 1.06.44l2.12 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.78',
   skip: 'M5 4v16l10-8zM19 5v14',
   volumeOn: 'M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14',
   volumeOff: 'M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6',
@@ -21,6 +25,19 @@ const PATHS = {
   chevron: 'm9 6 6 6-6 6',
   plus: 'M12 5v14M5 12h14',
   close: 'M6 6l12 12M18 6 6 18',
+  expand: 'M15 3h6v6M9 21h-6v-6M21 3l-7 7M3 21l7-7',
+  compress: 'M4 14h6v6M20 10h-6v-6M14 10l7-7M3 21l7-7',
+  play: 'M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z',
+  pause: 'M7 4h4v16H7zM13 4h4v16h-4z',
+  // Pasta com uma seta de "abrir por fora" no canto — usado tanto pro item
+  // atual (mostrar no gerenciador de arquivos) quanto por pasta na árvore.
+  revealInFolder:
+    'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2ZM14 9l6-6M15 3h5v5',
+  zoomIn: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.35-4.35M11 8v6M8 11h6',
+  zoomOut: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.35-4.35M8 11h6',
+  // Um só desenho pros dois modos de exibição: contorno = tamanho original,
+  // preenchido (via a prop `filled`) = preencher tela.
+  frame: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z',
 } as const
 
 export type IconName = keyof typeof PATHS

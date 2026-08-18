@@ -91,6 +91,13 @@ const api = {
   undoOrganize: (mediaId: number): Promise<UndoResult> =>
     ipcRenderer.invoke(IPC.undoOrganize, mediaId),
 
+  /** Abre o gerenciador de arquivos do SO com o arquivo selecionado. */
+  showItemInFolder: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.showItemInFolder, filePath),
+
+  /** Abre uma pasta (de destino ou subpasta real) no gerenciador de arquivos do SO. */
+  openPath: (dirPath: string): Promise<void> => ipcRenderer.invoke(IPC.openPath, dirPath),
+
   /**
    * Escuta o progresso do scan (main -> renderer). Devolve uma função de
    * cancelamento: sem removê-lo, cada re-render do React empilharia mais um

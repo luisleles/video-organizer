@@ -33,7 +33,10 @@ const MAX_IDS_POR_LOTE = 200
 export function registerIpcHandlers(): void {
   // --- renderer -> main, com resposta (invoke/handle) ---
 
-  ipcMain.handle(IPC.listFolders, (): SourceFolder[] => db.listSourceFolders())
+  ipcMain.handle(
+    IPC.listFolders,
+    async (): Promise<SourceFolder[]> => filterAvailable(db.listSourceFolders()),
+  )
 
   ipcMain.handle(IPC.listUnorganizedMedia, (): MediaFile[] => db.listUnorganizedMedia())
 
@@ -368,12 +371,12 @@ async function pickDirectory(
 }
 
 /**
- * As pastas de destino ficam em HDs externos, que podem estar desconectados a
- * qualquer momento — diferente das pastas de origem, o cadastro no banco não
- * garante que a pasta exista agora. Em vez de guardar um estado "conectado" que
- * precisaria ser atualizado por algum evento do SO, cada listagem checa o disco
- * na hora: sem HD montado, `fs.stat` falha com ENOENT e a pasta simplesmente não
- * entra na resposta. Reconectar o HD já basta — a próxima leitura volta a achar.
+ * Tanto pastas de origem quanto de destino ficam em HDs externos, que podem
+ * estar desconectados a qualquer momento — o cadastro no banco não garante que
+ * a pasta exista agora. Em vez de guardar um estado "conectado" que precisaria
+ * ser atualizado por algum evento do SO, cada listagem checa o disco na hora:
+ * sem HD montado, `fs.stat` falha com ENOENT e a pasta simplesmente não entra
+ * na resposta. Reconectar o HD já basta — a próxima leitura volta a achar.
  */
 async function isPathAvailable(folderPath: string): Promise<boolean> {
   try {
@@ -383,7 +386,9 @@ async function isPathAvailable(folderPath: string): Promise<boolean> {
   }
 }
 
-async function filterAvailable(folders: DestinationFolder[]): Promise<DestinationFolder[]> {
+/** Genérico em vez de fixo em `DestinationFolder`: serve igual para pastas de
+ *  origem, que passam pelo mesmo problema de disco removível. */
+async function filterAvailable<T extends { path: string }>(folders: T[]): Promise<T[]> {
   const available = await Promise.all(folders.map((folder) => isPathAvailable(folder.path)))
   return folders.filter((_folder, index) => available[index])
 }

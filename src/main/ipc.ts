@@ -148,11 +148,15 @@ export function registerIpcHandlers(): void {
     return db.getMediaByIds(ids)
   })
 
-  ipcMain.handle(IPC.listDestinations, (): DestinationFolder[] => db.listDestinationFolders())
-
-  ipcMain.handle(IPC.listRootDestinations, (): DestinationFolder[] =>
-    db.listRootDestinationFolders(),
+  ipcMain.handle(
+    IPC.listDestinations,
+    async (): Promise<DestinationFolder[]> => filterAvailable(db.listDestinationFolders()),
   )
+
+  ipcMain.handle(IPC.listRootDestinations, async (): Promise<DestinationFolder[]> => {
+    const available = await filterAvailable(db.listDestinationFolders())
+    return db.rootsOf(available)
+  })
 
   ipcMain.handle(IPC.listSubfolders, async (_event, rawPath: unknown): Promise<TreeFolder[]> => {
     if (typeof rawPath !== 'string' || !path.isAbsolute(rawPath)) return []
@@ -361,6 +365,27 @@ async function pickDirectory(
     : dialog.showOpenDialog(dialogOptions))
 
   return selection.canceled ? null : (selection.filePaths[0] ?? null)
+}
+
+/**
+ * As pastas de destino ficam em HDs externos, que podem estar desconectados a
+ * qualquer momento — diferente das pastas de origem, o cadastro no banco não
+ * garante que a pasta exista agora. Em vez de guardar um estado "conectado" que
+ * precisaria ser atualizado por algum evento do SO, cada listagem checa o disco
+ * na hora: sem HD montado, `fs.stat` falha com ENOENT e a pasta simplesmente não
+ * entra na resposta. Reconectar o HD já basta — a próxima leitura volta a achar.
+ */
+async function isPathAvailable(folderPath: string): Promise<boolean> {
+  try {
+    return (await fs.stat(folderPath)).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+async function filterAvailable(folders: DestinationFolder[]): Promise<DestinationFolder[]> {
+  const available = await Promise.all(folders.map((folder) => isPathAvailable(folder.path)))
+  return folders.filter((_folder, index) => available[index])
 }
 
 function requireId(value: unknown, label: string): number {

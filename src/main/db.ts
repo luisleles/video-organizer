@@ -461,20 +461,27 @@ export function listDestinationFolders(): DestinationFolder[] {
 }
 
 /**
- * Só as pastas de destino que não estão dentro de outra pasta de destino já
- * cadastrada — são as raízes da árvore no painel lateral. Uma pasta aninhada
- * aparece sozinha quando a árvore lê as subpastas reais da sua ancestral
- * (listSubfolders), então repeti-la aqui como raiz duplicaria o nó.
+ * Só as pastas de destino que não estão dentro de outra pasta do mesmo grupo —
+ * são as raízes da árvore no painel lateral. Uma pasta aninhada aparece sozinha
+ * quando a árvore lê as subpastas reais da sua ancestral (listSubfolders), então
+ * repeti-la aqui como raiz duplicaria o nó.
+ *
+ * Função pura, separada de `listRootDestinationFolders`, para que o main possa
+ * calcular as raízes depois de filtrar por disponibilidade no disco (pastas em
+ * HD externo desconectado) sem duplicar a lógica de aninhamento.
  */
-export function listRootDestinationFolders(): DestinationFolder[] {
-  const all = listDestinationFolders()
+export function rootsOf(folders: DestinationFolder[]): DestinationFolder[] {
   const isInsideAnother = (folder: DestinationFolder) =>
-    all.some((other) => {
+    folders.some((other) => {
       if (other.id === folder.id) return false
       const otherWithSep = other.path.endsWith(path.sep) ? other.path : other.path + path.sep
       return folder.path.startsWith(otherWithSep)
     })
-  return all.filter((folder) => !isInsideAnother(folder))
+  return folders.filter((folder) => !isInsideAnother(folder))
+}
+
+export function listRootDestinationFolders(): DestinationFolder[] {
+  return rootsOf(listDestinationFolders())
 }
 
 export function getDestinationFolder(id: number): DestinationFolder | undefined {

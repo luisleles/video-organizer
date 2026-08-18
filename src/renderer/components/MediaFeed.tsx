@@ -993,7 +993,12 @@ function ZoomControls({
   return (
     <div
       className="pointer-events-none absolute bottom-20 left-6 flex items-center gap-1.5"
+      // Dois bloqueios, para dois destinos diferentes: o pointerdown é o que o
+      // painel lateral escuta para fechar ao clicar fora; o click é o que o
+      // wrapper do vídeo escuta para pausar/retomar. Sem o segundo, mexer no
+      // zoom de um vídeo pausava a reprodução junto.
       onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
     >
       <button
         type="button"

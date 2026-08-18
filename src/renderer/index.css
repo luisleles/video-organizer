@@ -1,9 +1,62 @@
 @import 'tailwindcss';
 
+/*
+ * Identidade visual do app, em tokens semânticos.
+ *
+ * As telas usam `bg-surface`, `text-fg-muted`, `border-line` — nomes que dizem o
+ * papel do elemento, não a cor. Antes cada tela escolhia seu próprio tom de
+ * slate na mão, e nada garantia que dois cartões em telas diferentes tivessem o
+ * mesmo fundo. Trocar a paleta inteira agora é editar este bloco.
+ */
+@theme {
+  /* Fundos, do mais profundo ao mais elevado */
+  --color-canvas: oklch(12.9% 0.042 264.695);
+  --color-surface: oklch(20.8% 0.042 265.755);
+  --color-surface-hover: oklch(27.9% 0.041 260.031);
+
+  /* Traços */
+  --color-line: oklch(27.9% 0.041 260.031);
+  --color-line-strong: oklch(37.2% 0.044 257.287);
+
+  /* Texto, do mais forte ao mais apagado */
+  --color-fg: oklch(96.8% 0.007 247.896);
+  --color-fg-muted: oklch(70.4% 0.04 256.788);
+  --color-fg-subtle: oklch(44.6% 0.043 257.281);
+
+  /* Ação principal */
+  --color-accent: oklch(68.5% 0.169 237.323);
+  --color-accent-hover: oklch(74.6% 0.16 232.661);
+  --color-accent-deep: oklch(58.8% 0.158 241.966);
+
+  /* Estados */
+  --color-positive: oklch(69.6% 0.17 162.48);
+  --color-negative: oklch(63.7% 0.237 25.331);
+
+  /* Cantos: painéis, cartões e controles seguem esta escala */
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+}
+
+/*
+ * O app é uma interface de mídia em tela cheia: dark é a decisão de produto, não
+ * uma preferência do sistema. `color-scheme` faz o Chromium desenhar barras de
+ * rolagem, campos de formulário e menus nativos em escuro também — sem isso
+ * sobram retângulos brancos por cima de uma interface preta.
+ */
+:root {
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {
   height: 100%;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-fg);
 }
 
 @keyframes fade-in {
@@ -19,6 +72,25 @@ body,
   }
 }
 
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes pulse-soft {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 150ms ease-out;
 }
@@ -27,10 +99,25 @@ body,
   animation: slide-up 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+.animate-rise-in {
+  animation: rise-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 900ms linear infinite;
+}
+
 /* Quem configurou o sistema para reduzir animações não deve vê-las aqui. */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
-  .animate-slide-up {
+  .animate-slide-up,
+  .animate-rise-in,
+  .animate-pulse-soft,
+  .animate-spin-slow {
     animation: none;
   }
 }

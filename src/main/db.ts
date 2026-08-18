@@ -1,7 +1,13 @@
 import { app } from 'electron'
 import Database from 'better-sqlite3'
 import path from 'node:path'
-import type { DestinationFolder, MediaFile, MediaType, SourceFolder } from '../shared/types'
+import type {
+  DestinationFolder,
+  LibraryStats,
+  MediaFile,
+  MediaType,
+  SourceFolder,
+} from '../shared/types'
 import type { ScannedFile } from './scanner'
 
 // O banco fica em userData (~/.config/video-organizer no Linux), não junto do
@@ -277,6 +283,25 @@ export function touchDestinationFolder(id: number): void {
   conn()
     .prepare('UPDATE destination_folders SET last_used_at = ? WHERE id = ?')
     .run(new Date().toISOString(), id)
+}
+
+/**
+ * Tudo numa consulta só: a barra de progresso é relida depois de cada arquivo
+ * organizado, e cinco consultas separadas para isso seria desperdício.
+ */
+export function getLibraryStats(): LibraryStats {
+  return conn()
+    .prepare(
+      `SELECT COUNT(*)                                              AS total,
+              COALESCE(SUM(organized), 0)                           AS organized,
+              COALESCE(SUM(organized = 1 AND type = 'video'), 0)    AS organizedVideos,
+              COALESCE(SUM(organized = 1 AND type = 'image'), 0)    AS organizedImages,
+              (SELECT COUNT(DISTINCT destination_folder_id)
+                 FROM media_files
+                WHERE destination_folder_id IS NOT NULL)            AS foldersUsed
+         FROM media_files`,
+    )
+    .get() as LibraryStats
 }
 
 // --- preferências ---

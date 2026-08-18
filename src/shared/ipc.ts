@@ -18,6 +18,12 @@ export const IPC = {
   chooseDestinationParent: 'destinations:choose-parent',
   /** renderer -> main, com resposta: raiz sugerida para novas pastas */
   organizationRoot: 'settings:organization-root',
+  /** renderer -> main, com resposta: seletor nativo para definir a raiz padrão */
+  chooseOrganizationRoot: 'settings:choose-organization-root',
+  /** renderer -> main, com resposta: contagens da biblioteca inteira */
+  libraryStats: 'library:stats',
+  /** renderer -> main, com resposta: revarre as pastas de origem atrás de novidades */
+  rescanFolders: 'library:rescan',
   /** renderer -> main, com resposta: move o arquivo e marca como organizado */
   organizeMedia: 'organize:move',
   /** renderer -> main, com resposta: move de volta e desmarca */

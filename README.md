@@ -7,6 +7,18 @@ TypeScript, Vite e TailwindCSS. Alvo: Linux (Zorin OS / Ubuntu).
 escaneamento recursivo, catálogo em SQLite, feed vertical estilo TikTok tocando
 os vídeos direto do disco, e organização em pastas de destino com desfazer.
 
+## Identidade visual
+
+O app é escuro por decisão de produto — é uma interface de mídia em tela cheia —,
+não por seguir a preferência do sistema. `color-scheme: dark` no `:root` faz o
+Chromium desenhar também barras de rolagem e controles nativos em escuro.
+
+As cores, cantos e espaçamentos vivem como tokens semânticos em
+`src/renderer/index.css`, dentro de `@theme`. As telas usam `bg-surface`,
+`text-fg-muted`, `border-line` — nomes que descrevem o papel do elemento, não a
+cor. Trocar a paleta inteira (ou acrescentar um tema claro) é editar esse bloco,
+sem tocar em nenhuma tela.
+
 ## Atalhos do feed
 
 | Tecla | Ação |

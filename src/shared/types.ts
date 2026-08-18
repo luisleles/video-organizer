@@ -59,6 +59,22 @@ export type CreateDestinationResult =
   | { status: 'permission-denied' }
   | { status: 'error'; message: string }
 
+/** Números da biblioteca inteira, para a barra de progresso e o estado vazio. */
+export interface LibraryStats {
+  total: number
+  organized: number
+  organizedVideos: number
+  organizedImages: number
+  /** Quantas pastas de destino já receberam pelo menos um arquivo */
+  foldersUsed: number
+}
+
+export interface RescanResult {
+  foldersScanned: number
+  /** Só o que ainda não estava no catálogo */
+  newFiles: number
+}
+
 export interface ScanProgress {
   folderPath: string
   filesFound: number

@@ -6,8 +6,10 @@ import type {
   AddFolderResult,
   CreateDestinationResult,
   DestinationFolder,
+  LibraryStats,
   MediaFile,
   OrganizeResult,
+  RescanResult,
   ScanProgress,
   SourceFolder,
   UndoResult,
@@ -87,23 +89,44 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.organizationRoot, (): string => organizationRoot())
 
+  ipcMain.handle(IPC.libraryStats, (): LibraryStats => db.getLibraryStats())
+
+  ipcMain.handle(IPC.chooseOrganizationRoot, async (event): Promise<string | null> => {
+    const chosen = await pickDirectory(event, {
+      title: 'Pasta raiz de organização',
+      buttonLabel: 'Usar esta pasta',
+    })
+    if (chosen) db.setSetting(ORGANIZATION_ROOT_KEY, chosen)
+    return chosen
+  })
+
+  ipcMain.handle(IPC.rescanFolders, async (event): Promise<RescanResult> => {
+    const folders = db.listSourceFolders()
+    let newFiles = 0
+
+    for (const folder of folders) {
+      const files = await scanFolder(folder.path, (filesFound, currentDir) => {
+        if (!event.sender.isDestroyed()) {
+          const progress: ScanProgress = { folderPath: folder.path, filesFound, currentDir }
+          event.sender.send(IPC.scanProgress, progress)
+        }
+      })
+      // INSERT OR IGNORE + UNIQUE em path: o que já está catalogado é descartado
+      // em silêncio, então revarrer não duplica nada. Arquivos já organizados
+      // também não voltam, porque o caminho deles no banco agora é o do destino.
+      newFiles += db.insertMediaFiles(folder.id, files)
+    }
+
+    return { foldersScanned: folders.length, newFiles }
+  })
+
   ipcMain.handle(IPC.chooseDestinationParent, async (event): Promise<string | null> => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    const options: Electron.OpenDialogOptions = {
+    const chosen = await pickDirectory(event, {
       title: 'Onde criar a nova pasta',
       buttonLabel: 'Criar aqui',
-      defaultPath: organizationRoot(),
-      properties: ['openDirectory', 'createDirectory'],
-    }
-    const selection = await (window
-      ? dialog.showOpenDialog(window, options)
-      : dialog.showOpenDialog(options))
-
-    const chosen = selection.filePaths[0]
-    if (selection.canceled || !chosen) return null
-
+    })
     // A escolha vira a sugestão padrão da próxima vez.
-    db.setSetting(ORGANIZATION_ROOT_KEY, chosen)
+    if (chosen) db.setSetting(ORGANIZATION_ROOT_KEY, chosen)
     return chosen
   })
 
@@ -200,6 +223,25 @@ export function registerIpcHandlers(): void {
 /** Raiz sugerida para novas pastas: o que o usuário escolheu por último, ou ~/Vídeos. */
 function organizationRoot(): string {
   return db.getSetting(ORGANIZATION_ROOT_KEY) ?? app.getPath('videos')
+}
+
+/** Seletor de pasta preso à janela que pediu, começando na raiz de organização. */
+async function pickDirectory(
+  event: Electron.IpcMainInvokeEvent,
+  options: { title: string; buttonLabel: string },
+): Promise<string | null> {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  const dialogOptions: Electron.OpenDialogOptions = {
+    ...options,
+    defaultPath: organizationRoot(),
+    properties: ['openDirectory', 'createDirectory'],
+  }
+
+  const selection = await (window
+    ? dialog.showOpenDialog(window, dialogOptions)
+    : dialog.showOpenDialog(dialogOptions))
+
+  return selection.canceled ? null : (selection.filePaths[0] ?? null)
 }
 
 function requireId(value: unknown, label: string): number {

@@ -4,8 +4,10 @@ import type {
   AddFolderResult,
   CreateDestinationResult,
   DestinationFolder,
+  LibraryStats,
   MediaFile,
   OrganizeResult,
+  RescanResult,
   ScanProgress,
   SourceFolder,
   UndoResult,
@@ -46,6 +48,16 @@ const api = {
 
   /** Raiz sugerida para novas pastas (a última escolhida, ou ~/Vídeos). */
   organizationRoot: (): Promise<string> => ipcRenderer.invoke(IPC.organizationRoot),
+
+  /** Abre o seletor nativo para definir a raiz padrão de organização. */
+  chooseOrganizationRoot: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.chooseOrganizationRoot),
+
+  /** Contagens da biblioteca inteira (progresso e estatísticas). */
+  libraryStats: (): Promise<LibraryStats> => ipcRenderer.invoke(IPC.libraryStats),
+
+  /** Revarre as pastas de origem atrás de arquivos novos, sem duplicar. */
+  rescanFolders: (): Promise<RescanResult> => ipcRenderer.invoke(IPC.rescanFolders),
 
   /** Abre o seletor nativo para escolher onde a nova pasta será criada. */
   chooseDestinationParent: (): Promise<string | null> =>

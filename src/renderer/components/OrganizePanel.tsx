@@ -96,11 +96,11 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
             onClose()
           }
         }}
-        className="animate-slide-up mb-8 flex max-h-[75%] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
+        className="animate-slide-up mb-8 flex max-h-[75%] w-full max-w-lg flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-2xl"
       >
-        <div className="border-b border-slate-800 px-5 py-4">
-          <p className="text-xs text-slate-500">Organizar</p>
-          <p className="truncate text-sm font-medium text-slate-100" title={filename}>
+        <div className="border-b border-line px-5 py-4">
+          <p className="text-xs text-fg-subtle">Organizar</p>
+          <p className="truncate text-sm font-medium text-fg" title={filename}>
             {filename}
           </p>
         </div>
@@ -108,7 +108,7 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
         {creating ? (
           <div className="flex flex-col gap-4 p-5">
             <div>
-              <label className="text-xs font-medium text-slate-400" htmlFor="nova-pasta">
+              <label className="text-xs font-medium text-fg-muted" htmlFor="nova-pasta">
                 Nome da nova pasta
               </label>
               <input
@@ -120,15 +120,15 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
                   if (event.key === 'Enter' && newName.trim() && !busy) void handleCreate()
                 }}
                 placeholder="Férias 2024"
-                className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-sky-600"
+                className="mt-1.5 w-full rounded-control border border-line-strong bg-canvas px-3 py-2 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent"
               />
             </div>
 
             <div>
-              <p className="text-xs font-medium text-slate-400">Será criada em</p>
+              <p className="text-xs font-medium text-fg-muted">Será criada em</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <p
-                  className="min-w-0 flex-1 truncate rounded-lg bg-slate-950 px-3 py-2 text-xs text-slate-400"
+                  className="min-w-0 flex-1 truncate rounded-control bg-canvas px-3 py-2 text-xs text-fg-muted"
                   title={parentPath}
                 >
                   {parentPath || '…'}
@@ -136,14 +136,14 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
                 <button
                   type="button"
                   onClick={handleChooseParent}
-                  className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-slate-500 hover:text-white"
+                  className="shrink-0 rounded-control border border-line-strong px-3 py-2 text-xs text-fg-muted transition hover:border-fg-subtle hover:text-white"
                 >
                   Alterar
                 </button>
               </div>
             </div>
 
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-negative">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <button
@@ -152,7 +152,7 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
                   if (destinations.length === 0) onClose()
                   else setCreating(false)
                 }}
-                className="rounded-lg px-4 py-2 text-sm text-slate-400 transition hover:text-slate-200"
+                className="rounded-control px-4 py-2 text-sm text-fg-muted transition hover:text-fg"
               >
                 {destinations.length === 0 ? 'Cancelar' : 'Voltar para a lista'}
               </button>
@@ -160,7 +160,7 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
                 type="button"
                 onClick={handleCreate}
                 disabled={!newName.trim() || busy}
-                className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:bg-slate-700 disabled:text-slate-500"
+                className="rounded-control bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:bg-surface-hover disabled:text-fg-subtle"
               >
                 {busy ? 'Criando…' : 'Criar e mover para cá'}
               </button>
@@ -178,13 +178,13 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
                   if (event.key === 'Enter' && filtered[0]) onChoose(filtered[0])
                 }}
                 placeholder="Buscar pasta de destino…"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-sky-600"
+                className="w-full rounded-control border border-line-strong bg-canvas px-3 py-2 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent"
               />
             </div>
 
             <ul className="min-h-0 flex-1 overflow-y-auto px-4">
               {filtered.length === 0 ? (
-                <li className="px-1 py-6 text-center text-sm text-slate-500">
+                <li className="px-1 py-6 text-center text-sm text-fg-subtle">
                   Nenhuma pasta encontrada para “{query}”.
                 </li>
               ) : (
@@ -193,15 +193,15 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
                     <button
                       type="button"
                       onClick={() => onChoose(folder)}
-                      className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-slate-800"
+                      className="group flex w-full items-center gap-3 rounded-control px-3 py-2.5 text-left transition hover:bg-surface-hover"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-slate-100">{folder.name}</span>
-                        <span className="block truncate text-xs text-slate-500" title={folder.path}>
+                        <span className="block truncate text-sm text-fg">{folder.name}</span>
+                        <span className="block truncate text-xs text-fg-subtle" title={folder.path}>
                           {folder.path}
                         </span>
                       </span>
-                      <span className="shrink-0 text-xs text-slate-600 group-hover:text-slate-400">
+                      <span className="shrink-0 text-xs text-fg-subtle group-hover:text-fg-muted">
                         {folder.lastUsedAt ? 'usada antes' : 'nova'}
                       </span>
                     </button>
@@ -210,14 +210,14 @@ export default function OrganizePanel({ filename, onChoose, onClose }: OrganizeP
               )}
             </ul>
 
-            <div className="border-t border-slate-800 p-4">
+            <div className="border-t border-line p-4">
               <button
                 type="button"
                 onClick={() => {
                   setNewName(query)
                   setCreating(true)
                 }}
-                className="w-full rounded-lg border border-dashed border-slate-700 px-4 py-2.5 text-sm text-slate-300 transition hover:border-sky-700 hover:text-white"
+                className="w-full rounded-control border border-dashed border-line-strong px-4 py-2.5 text-sm text-fg-muted transition hover:border-accent hover:text-white"
               >
                 + Criar nova pasta
               </button>

@@ -1,11 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import AllDoneState from '../components/AllDoneState'
+import FeedSkeleton from '../components/FeedSkeleton'
+import Icon, { type IconName } from '../components/Icon'
+import { percentOrganized } from '../components/LibraryProgress'
 import OrganizePanel from '../components/OrganizePanel'
 import Toast, { type ToastData } from '../components/Toast'
 import { toMediaUrl } from '../../shared/media-url'
-import type { DestinationFolder, MediaFile, OrganizeResult, UndoResult } from '../../shared/types'
+import type {
+  DestinationFolder,
+  LibraryStats,
+  MediaFile,
+  OrganizeResult,
+  UndoResult,
+} from '../../shared/types'
 
 interface FeedScreenProps {
+  stats: LibraryStats | null
+  onStatsChanged: () => void
   onBack: () => void
+  onOpenSettings: () => void
 }
 
 /**
@@ -21,7 +34,12 @@ const MOUNT_RADIUS = 1
 /** Tempo da animação de saída antes de o item deixar a lista. */
 const EXIT_MS = 220
 
-export default function FeedScreen({ onBack }: FeedScreenProps) {
+export default function FeedScreen({
+  stats,
+  onStatsChanged,
+  onBack,
+  onOpenSettings,
+}: FeedScreenProps) {
   const [items, setItems] = useState<MediaFile[] | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [muted, setMuted] = useState(true)
@@ -124,6 +142,7 @@ export default function FeedScreen({ onBack }: FeedScreenProps) {
 
     const positionBefore = activeIndex
     await removeActiveItem(item.id)
+    onStatsChanged()
 
     showToast({
       kind: 'success',
@@ -163,6 +182,7 @@ export default function FeedScreen({ onBack }: FeedScreenProps) {
     // Espera o React pintar a lista com o item de volta antes de rolar até ele;
     // rolar no mesmo tick miraria a lista antiga, que tinha um item a menos.
     requestAnimationFrame(() => goTo(position))
+    onStatsChanged()
     showToast({ kind: 'success', text: 'Organização desfeita', detail: item.filename })
   }
 
@@ -283,30 +303,16 @@ export default function FeedScreen({ onBack }: FeedScreenProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [activeIndex, goTo, handleSkip, onBack, panelOpen])
 
-  if (items === null) {
-    return <Centered>Carregando…</Centered>
-  }
+  if (items === null) return <FeedSkeleton />
 
   if (items.length === 0) {
-    return (
-      <Centered>
-        <p className="text-lg text-slate-200">Tudo organizado! 🎉</p>
-        <p className="mt-1 text-slate-500">Não há mais arquivos na fila.</p>
-        <button
-          type="button"
-          onClick={onBack}
-          className="mt-6 rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white"
-        >
-          Voltar para a configuração
-        </button>
-      </Centered>
-    )
+    return <AllDoneState stats={stats} onBack={onBack} onOpenSettings={onOpenSettings} />
   }
 
   const active = items[activeIndex]
 
   return (
-    <div className="relative h-full overflow-hidden bg-black text-white">
+    <div className="bg-canvas text-fg relative h-full overflow-hidden">
       <div
         ref={containerRef}
         className="no-scrollbar no-scroll-anchor h-full snap-y snap-mandatory overflow-y-scroll"
@@ -335,17 +341,32 @@ export default function FeedScreen({ onBack }: FeedScreenProps) {
           scroll; os botões reativam o clique individualmente. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-6">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 rounded-xl bg-black/60 px-4 py-2.5 backdrop-blur">
+          <div className="rounded-card min-w-0 bg-black/60 px-4 py-2.5 backdrop-blur">
             <p className="truncate text-sm font-medium" title={active?.path}>
               {active?.filename}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="text-fg-muted mt-0.5 text-xs">
               {active?.type === 'video' ? 'Vídeo' : 'Imagem'}
             </p>
           </div>
 
-          <div className="shrink-0 rounded-xl bg-black/60 px-4 py-2.5 text-sm tabular-nums backdrop-blur">
-            {activeIndex + 1} de {items.length} restantes
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="rounded-card bg-black/60 px-4 py-2.5 text-sm tabular-nums backdrop-blur">
+              <span className="text-accent-hover font-semibold">
+                {percentOrganized(stats)}%
+              </span>
+              <span className="text-fg-subtle"> organizado · </span>
+              {activeIndex + 1} de {items.length} restantes
+            </div>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              title="Configurações"
+              aria-label="Configurações"
+              className="text-fg-muted hover:text-fg pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/60 backdrop-blur transition hover:bg-black/80"
+            >
+              <Icon name="settings" />
+            </button>
           </div>
         </div>
 
@@ -353,20 +374,20 @@ export default function FeedScreen({ onBack }: FeedScreenProps) {
           <button
             type="button"
             onClick={onBack}
-            className="pointer-events-auto rounded-lg bg-black/60 px-4 py-2 text-xs text-slate-300 backdrop-blur transition hover:text-white"
+            className="rounded-control text-fg-muted hover:text-fg pointer-events-auto bg-black/60 px-4 py-2 text-xs backdrop-blur transition"
           >
             Voltar (Esc)
           </button>
 
           <div className="flex items-center gap-2">
             <NavButton onClick={() => goTo(activeIndex - 1)} disabled={activeIndex === 0}>
-              ↑
+              <Icon name="arrowUp" />
             </NavButton>
             <NavButton
               onClick={() => goTo(activeIndex + 1)}
               disabled={activeIndex === items.length - 1}
             >
-              ↓
+              <Icon name="arrowDown" />
             </NavButton>
           </div>
         </div>
@@ -377,17 +398,17 @@ export default function FeedScreen({ onBack }: FeedScreenProps) {
         <RailButton
           onClick={() => setPanelOpen(true)}
           disabled={busy}
-          icon="📂"
+          icon="folder"
           label="Organizar"
           hint="O"
           highlighted
         />
-        <RailButton onClick={handleSkip} disabled={busy} icon="⏭" label="Pular" hint="S" />
+        <RailButton onClick={handleSkip} disabled={busy} icon="skip" label="Pular" hint="S" />
         {active?.type === 'video' && (
           <RailButton
             onClick={() => setMuted((current) => !current)}
             disabled={false}
-            icon={muted ? '🔇' : '🔊'}
+            icon={muted ? 'volumeOff' : 'volumeOn'}
             label={muted ? 'Sem som' : 'Com som'}
             hint="M"
           />
@@ -434,8 +455,8 @@ function Slide({ file, active, muted }: { file: MediaFile; active: boolean; mute
   if (failed) {
     return (
       <div className="px-8 text-center">
-        <p className="text-slate-300">Não foi possível abrir este arquivo.</p>
-        <p className="mt-2 text-xs break-all text-slate-600">{file.path}</p>
+        <p className="text-fg-muted">Não foi possível abrir este arquivo.</p>
+        <p className="text-fg-subtle mt-2 text-xs break-all">{file.path}</p>
       </div>
     )
   }
@@ -443,11 +464,24 @@ function Slide({ file, active, muted }: { file: MediaFile; active: boolean; mute
   return file.type === 'video' ? (
     <VideoSlide file={file} active={active} muted={muted} onFail={() => setFailed(true)} />
   ) : (
+    <ImageSlide file={file} onFail={() => setFailed(true)} />
+  )
+}
+
+function ImageSlide({ file, onFail }: { file: MediaFile; onFail: () => void }) {
+  // Aparece só depois de decodificada: sem isso o navegador pinta a imagem
+  // linha a linha enquanto carrega, e o feed pisca a cada item.
+  const [loaded, setLoaded] = useState(false)
+
+  return (
     <img
       src={toMediaUrl(file.path)}
       alt={file.filename}
-      onError={() => setFailed(true)}
-      className="max-h-full max-w-full object-contain"
+      onLoad={() => setLoaded(true)}
+      onError={onFail}
+      className={`max-h-full max-w-full object-contain transition-opacity duration-300 ${
+        loaded ? 'opacity-100' : 'opacity-0'
+      }`}
     />
   )
 }
@@ -464,6 +498,7 @@ function VideoSlide({
   onFail: () => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [ready, setReady] = useState(false)
 
   // O React não reflete `muted` como atributo do DOM — passar muted={muted} no
   // JSX não tem efeito depois da primeira renderização. Tem que ser propriedade.
@@ -494,8 +529,11 @@ function VideoSlide({
       // Só metadados: com preload="auto" o Chromium começaria a baixar os
       // vizinhos inteiros, e o feed engasgaria em arquivos grandes.
       preload="metadata"
+      onLoadedData={() => setReady(true)}
       onError={onFail}
-      className="max-h-full max-w-full object-contain"
+      className={`max-h-full max-w-full object-contain transition-opacity duration-300 ${
+        ready ? 'opacity-100' : 'opacity-0'
+      }`}
     />
   )
 }
@@ -510,7 +548,7 @@ function RailButton({
 }: {
   onClick: () => void
   disabled: boolean
-  icon: string
+  icon: IconName
   label: string
   hint: string
   highlighted?: boolean
@@ -526,13 +564,13 @@ function RailButton({
       <span
         className={`flex h-14 w-14 items-center justify-center rounded-full text-xl backdrop-blur transition ${
           highlighted
-            ? 'bg-sky-600/90 hover:bg-sky-500 hover:scale-105'
+            ? 'bg-accent/90 hover:bg-accent-hover hover:scale-105'
             : 'bg-black/60 hover:bg-black/80 hover:scale-105'
         }`}
       >
-        {icon}
+        <Icon name={icon} className="h-6 w-6" />
       </span>
-      <span className="text-[11px] font-medium text-slate-300">{label}</span>
+      <span className="text-fg-muted text-[11px] font-medium">{label}</span>
     </button>
   )
 }
@@ -558,10 +596,3 @@ function NavButton({
   )
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center bg-black text-center text-sm text-slate-400">
-      {children}
-    </div>
-  )
-}

@@ -1,34 +1,39 @@
 import type { LibraryStats } from '../../shared/types'
 
 interface AllDoneStateProps {
+  /**
+   * `no-folders`: nenhuma pasta de origem cadastrada ainda — convida a ir em
+   * Configurações. `all-done`: há pastas, mas a fila está vazia (tudo
+   * organizado ou tudo pulado até o fim).
+   */
+  kind: 'no-folders' | 'all-done'
   stats: LibraryStats | null
-  onBack: () => void
   onOpenSettings: () => void
 }
 
 /**
- * Fim da fila. Mostra o que foi feito em vez de só dizer que acabou — depois de
- * uma sessão longa, o número é a recompensa.
+ * Fim da fila (ou início vazio). Mostra o que foi feito em vez de só dizer que
+ * acabou — depois de uma sessão longa, o número é a recompensa.
  */
-export default function AllDoneState({ stats, onBack, onOpenSettings }: AllDoneStateProps) {
-  const nothingEverOrganized = (stats?.organized ?? 0) === 0
+export default function AllDoneState({ kind, stats, onOpenSettings }: AllDoneStateProps) {
+  const noFolders = kind === 'no-folders'
 
   return (
     <div className="bg-canvas text-fg flex h-full flex-col items-center justify-center px-8 text-center">
       <div className="animate-rise-in flex flex-col items-center">
-        <span className="text-6xl">{nothingEverOrganized ? '📂' : '🎉'}</span>
+        <span className="text-6xl">{noFolders ? '📂' : '🎉'}</span>
 
         <h1 className="mt-6 text-3xl font-bold tracking-tight">
-          {nothingEverOrganized ? 'Nada na fila' : 'Tudo organizado!'}
+          {noFolders ? 'Nenhuma pasta cadastrada' : 'Tudo organizado!'}
         </h1>
 
         <p className="text-fg-muted mt-2 max-w-md text-sm">
-          {nothingEverOrganized
-            ? 'Não há arquivos esperando. Cadastre uma pasta de origem ou sincronize para buscar novidades.'
+          {noFolders
+            ? 'Vá em Configurações e adicione uma pasta com vídeos ou imagens para começar.'
             : 'Você chegou ao fim da fila. Nada mais esperando por aqui.'}
         </p>
 
-        {!nothingEverOrganized && stats && (
+        {!noFolders && stats && (
           <div className="mt-10 flex items-stretch gap-3">
             <Stat value={stats.organizedVideos} label={stats.organizedVideos === 1 ? 'vídeo' : 'vídeos'} />
             <Stat
@@ -43,20 +48,13 @@ export default function AllDoneState({ stats, onBack, onOpenSettings }: AllDoneS
           </div>
         )}
 
-        <div className="mt-10 flex items-center gap-3">
+        <div className="mt-10">
           <button
             type="button"
             onClick={onOpenSettings}
             className="bg-accent hover:bg-accent-hover rounded-control px-5 py-2.5 text-sm font-semibold text-white transition"
           >
-            Sincronizar ou adicionar pastas
-          </button>
-          <button
-            type="button"
-            onClick={onBack}
-            className="border-line-strong text-fg-muted hover:border-fg-subtle hover:text-fg rounded-control border px-5 py-2.5 text-sm transition"
-          >
-            Voltar ao início
+            {noFolders ? 'Ir para Configurações' : 'Sincronizar ou adicionar pastas'}
           </button>
         </div>
       </div>

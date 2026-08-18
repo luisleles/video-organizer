@@ -8,6 +8,7 @@ import type {
   MediaType,
   SourceFolder,
 } from '../shared/types'
+type MediaFileRow = Omit<MediaFile, 'favorited'> & { favorited: number }
 import type { ScannedFile } from './scanner'
 
 // O banco fica em userData (~/.config/video-organizer no Linux), não junto do
@@ -64,6 +65,10 @@ const MIGRATIONS: Array<{ table: string; column: string; definition: string }> =
     column: 'destination_folder_id',
     definition: 'INTEGER REFERENCES destination_folders(id)',
   },
+  // Favoritar é independente de organizar: um booleano simples no próprio
+  // arquivo, sem tabela separada, porque não carrega metadado nenhum além
+  // disso (nem data, nem ordem — só "é ou não é").
+  { table: 'media_files', column: 'favorited', definition: 'INTEGER NOT NULL DEFAULT 0' },
 ]
 
 function runMigrations(database: Database.Database): void {
@@ -166,16 +171,53 @@ export function insertMediaFiles(folderId: number, files: ScannedFile[]): number
   return insertAll(files, new Date().toISOString())
 }
 
+/**
+ * SQLite não tem tipo boolean: a coluna `favorited` vem como 0/1. Converter
+ * aqui, num só lugar, evita que `0`/`1` "funcionem por acaso" em comparações
+ * estritas (`=== true`) mais adiante no código.
+ */
+function toMediaFile(row: MediaFileRow): MediaFile {
+  return { ...row, favorited: Boolean(row.favorited) }
+}
+
 /** Fila do feed: o que ainda não foi organizado, na ordem em que foi descoberto. */
 export function listUnorganizedMedia(): MediaFile[] {
-  return conn()
-    .prepare(
-      `SELECT id, path, filename, type, discovered_at AS discoveredAt
+  return (
+    conn()
+      .prepare(
+        `SELECT id, path, filename, type, discovered_at AS discoveredAt, favorited
          FROM media_files
         WHERE organized = 0
         ORDER BY discovered_at, id`,
-    )
-    .all() as MediaFile[]
+      )
+      .all() as MediaFileRow[]
+  ).map(toMediaFile)
+}
+
+/** Todos os arquivos favoritados, independente de estarem organizados ou não. */
+export function listFavorites(): MediaFile[] {
+  return (
+    conn()
+      .prepare(
+        `SELECT id, path, filename, type, discovered_at AS discoveredAt, favorited
+         FROM media_files
+        WHERE favorited = 1
+        ORDER BY discovered_at, id`,
+      )
+      .all() as MediaFileRow[]
+  ).map(toMediaFile)
+}
+
+/** Inverte o favorito do arquivo e devolve o novo estado. */
+export function toggleFavorite(id: number): boolean {
+  const row = conn().prepare('SELECT favorited FROM media_files WHERE id = ?').get(id) as
+    | { favorited: number }
+    | undefined
+  if (!row) throw new Error('Arquivo não está mais no catálogo')
+
+  const next = row.favorited ? 0 : 1
+  conn().prepare('UPDATE media_files SET favorited = ? WHERE id = ?').run(next, id)
+  return next === 1
 }
 
 /**
@@ -196,24 +238,26 @@ export function countMediaByType(folderId: number, type: MediaType): number {
   return row.total
 }
 
-const MEDIA_COLUMNS = `id, path, filename, type, discovered_at AS discoveredAt`
+const MEDIA_COLUMNS = `id, path, filename, type, discovered_at AS discoveredAt, favorited`
 
 export function getMediaFile(id: number): MediaFile | undefined {
-  return conn().prepare(`SELECT ${MEDIA_COLUMNS} FROM media_files WHERE id = ?`).get(id) as
-    | MediaFile
+  const row = conn().prepare(`SELECT ${MEDIA_COLUMNS} FROM media_files WHERE id = ?`).get(id) as
+    | MediaFileRow
     | undefined
+  return row && toMediaFile(row)
 }
 
 /** Só para o undo: precisa saber de onde o arquivo veio. */
 export function getOrganizedMedia(
   id: number,
 ): (MediaFile & { originalPath: string | null }) | undefined {
-  return conn()
+  const row = conn()
     .prepare(
       `SELECT ${MEDIA_COLUMNS}, original_path AS originalPath
          FROM media_files WHERE id = ? AND organized = 1`,
     )
-    .get(id) as (MediaFile & { originalPath: string | null }) | undefined
+    .get(id) as (MediaFileRow & { originalPath: string | null }) | undefined
+  return row && { ...toMediaFile(row), originalPath: row.originalPath }
 }
 
 export function markOrganized(
@@ -256,6 +300,23 @@ export function listDestinationFolders(): DestinationFolder[] {
         ORDER BY COALESCE(last_used_at, created_at) DESC, id DESC`,
     )
     .all() as DestinationFolder[]
+}
+
+/**
+ * Só as pastas de destino que não estão dentro de outra pasta de destino já
+ * cadastrada — são as raízes da árvore no painel lateral. Uma pasta aninhada
+ * aparece sozinha quando a árvore lê as subpastas reais da sua ancestral
+ * (listSubfolders), então repeti-la aqui como raiz duplicaria o nó.
+ */
+export function listRootDestinationFolders(): DestinationFolder[] {
+  const all = listDestinationFolders()
+  const isInsideAnother = (folder: DestinationFolder) =>
+    all.some((other) => {
+      if (other.id === folder.id) return false
+      const otherWithSep = other.path.endsWith(path.sep) ? other.path : other.path + path.sep
+      return folder.path.startsWith(otherWithSep)
+    })
+  return all.filter((folder) => !isInsideAnother(folder))
 }
 
 export function getDestinationFolder(id: number): DestinationFolder | undefined {

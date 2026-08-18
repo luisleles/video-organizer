@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import LibraryProgress from './components/LibraryProgress'
+import NavRail, { type Screen } from './components/NavRail'
+import FavoritesScreen from './screens/FavoritesScreen'
 import FeedScreen from './screens/FeedScreen'
 import SettingsScreen from './screens/SettingsScreen'
-import SetupScreen from './screens/SetupScreen'
 import type { LibraryStats } from '../shared/types'
-
-type Screen = 'setup' | 'feed' | 'settings'
 
 // Navegação por estado, sem roteador: são três telas e nenhuma URL para
 // compartilhar. Quando surgir navegação aninhada, trocar por react-router aqui
 // não afeta o resto do código.
+//
+// O feed é a tela inicial (estilo "Para você" do TikTok) — não há mais uma
+// etapa de cadastro obrigatória antes dele. Configurações vira uma tela
+// acessória atrás do ícone de engrenagem na rail lateral.
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('setup')
+  const [screen, setScreen] = useState<Screen>('feed')
   const [stats, setStats] = useState<LibraryStats | null>(null)
 
   // As estatísticas vivem aqui porque três telas as mostram e duas as alteram.
@@ -29,21 +32,24 @@ export default function App() {
           em tela cheia, sem roubar espaço da mídia. */}
       <LibraryProgress stats={stats} variant="line" />
 
-      <div className="min-h-0 flex-1">
-        {screen === 'setup' && (
-          <SetupScreen
-            stats={stats}
-            onStatsChanged={refreshStats}
-            onStart={() => setScreen('feed')}
-            onOpenSettings={() => setScreen('settings')}
-          />
-        )}
+      <div className="relative min-h-0 flex-1">
+        {/* A rail de navegação (Início, Favoritos, Configurações) fica sobre o
+            feed. Em Configurações ela some: a tela já tem seu próprio jeito de
+            voltar, no cabeçalho. */}
+        {screen !== 'settings' && <NavRail screen={screen} onNavigate={setScreen} />}
 
         {screen === 'feed' && (
           <FeedScreen
             stats={stats}
             onStatsChanged={refreshStats}
-            onBack={() => setScreen('setup')}
+            onOpenSettings={() => setScreen('settings')}
+          />
+        )}
+
+        {screen === 'favorites' && (
+          <FavoritesScreen
+            stats={stats}
+            onStatsChanged={refreshStats}
             onOpenSettings={() => setScreen('settings')}
           />
         )}
@@ -52,7 +58,7 @@ export default function App() {
           <SettingsScreen
             stats={stats}
             onStatsChanged={refreshStats}
-            onBack={() => setScreen('setup')}
+            onBack={() => setScreen('feed')}
           />
         )}
       </div>

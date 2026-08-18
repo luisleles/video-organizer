@@ -22,6 +22,7 @@ export interface MediaFile {
   type: MediaType
   /** ISO 8601 */
   discoveredAt: string
+  favorited: boolean
 }
 
 export interface DestinationFolder {
@@ -30,6 +31,19 @@ export interface DestinationFolder {
   name: string
   createdAt: string
   /** null enquanto nunca tiver recebido um arquivo */
+  lastUsedAt: string | null
+}
+
+/**
+ * Um nó da árvore de destino, lido ao vivo do disco (não do banco): é o que
+ * mantém a árvore sincronizada com subpastas criadas por fora do app.
+ * `destinationId`/`lastUsedAt` só existem quando a pasta já é uma pasta de
+ * destino conhecida — uma subpasta real ainda não usada aparece com `null`.
+ */
+export interface TreeFolder {
+  path: string
+  name: string
+  destinationId: number | null
   lastUsedAt: string | null
 }
 

@@ -12,6 +12,10 @@ export const IPC = {
   listUnorganizedMedia: 'media:list-unorganized',
   /** renderer -> main, com resposta: pastas de destino, mais usadas recentemente primeiro */
   listDestinations: 'destinations:list',
+  /** renderer -> main, com resposta: só as pastas de destino que não estão dentro de outra (raízes da árvore) */
+  listRootDestinations: 'destinations:list-roots',
+  /** renderer -> main, com resposta: subpastas reais de um caminho, lidas ao vivo do disco */
+  listSubfolders: 'destinations:list-subfolders',
   /** renderer -> main, com resposta: cria a pasta no disco e cadastra */
   createDestination: 'destinations:create',
   /** renderer -> main, com resposta: seletor nativo para escolher onde criar */
@@ -24,10 +28,14 @@ export const IPC = {
   libraryStats: 'library:stats',
   /** renderer -> main, com resposta: revarre as pastas de origem atrás de novidades */
   rescanFolders: 'library:rescan',
-  /** renderer -> main, com resposta: move o arquivo e marca como organizado */
+  /** renderer -> main, com resposta: move o arquivo (por caminho de destino) e marca como organizado */
   organizeMedia: 'organize:move',
   /** renderer -> main, com resposta: move de volta e desmarca */
   undoOrganize: 'organize:undo',
+  /** renderer -> main, com resposta: inverte o favorito do arquivo, devolve o novo estado */
+  toggleFavorite: 'media:toggle-favorite',
+  /** renderer -> main, com resposta: todos os arquivos favoritados, independente de organizado */
+  listFavorites: 'media:list-favorites',
   /** main -> renderer, sem resposta: progresso do escaneamento em andamento */
   scanProgress: 'scan:progress',
 } as const

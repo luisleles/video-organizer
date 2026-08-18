@@ -12,6 +12,7 @@ import type {
   RescanResult,
   ScanProgress,
   SourceFolder,
+  TreeFolder,
   UndoResult,
 } from '../shared/types'
 import * as db from './db'
@@ -31,6 +32,12 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.listFolders, (): SourceFolder[] => db.listSourceFolders())
 
   ipcMain.handle(IPC.listUnorganizedMedia, (): MediaFile[] => db.listUnorganizedMedia())
+
+  ipcMain.handle(IPC.listFavorites, (): MediaFile[] => db.listFavorites())
+
+  ipcMain.handle(IPC.toggleFavorite, (_event, rawMediaId: unknown): boolean =>
+    db.toggleFavorite(requireId(rawMediaId, 'id do arquivo')),
+  )
 
   ipcMain.handle(IPC.addFolder, async (event): Promise<AddFolderResult> => {
     // `event.sender` é o webContents de quem chamou; dá pra descobrir a janela e
@@ -86,6 +93,37 @@ export function registerIpcHandlers(): void {
   // --- pastas de destino ---
 
   ipcMain.handle(IPC.listDestinations, (): DestinationFolder[] => db.listDestinationFolders())
+
+  ipcMain.handle(IPC.listRootDestinations, (): DestinationFolder[] =>
+    db.listRootDestinationFolders(),
+  )
+
+  ipcMain.handle(IPC.listSubfolders, async (_event, rawPath: unknown): Promise<TreeFolder[]> => {
+    if (typeof rawPath !== 'string' || !path.isAbsolute(rawPath)) return []
+
+    let entries
+    try {
+      entries = await fs.readdir(rawPath, { withFileTypes: true })
+    } catch {
+      // A pasta pode ter sido apagada ou renomeada por fora do app entre uma
+      // leitura e outra — a árvore só reflete o que existe agora.
+      return []
+    }
+
+    return entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+      .map((entry): TreeFolder => {
+        const fullPath = path.join(rawPath, entry.name)
+        const known = db.findDestinationByPath(fullPath)
+        return {
+          path: fullPath,
+          name: entry.name,
+          destinationId: known?.id ?? null,
+          lastUsedAt: known?.lastUsedAt ?? null,
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  })
 
   ipcMain.handle(IPC.organizationRoot, (): string => organizationRoot())
 
@@ -167,15 +205,21 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     IPC.organizeMedia,
-    async (_event, rawMediaId: unknown, rawDestinationId: unknown): Promise<OrganizeResult> => {
+    async (_event, rawMediaId: unknown, rawDestinationPath: unknown): Promise<OrganizeResult> => {
       const mediaId = requireId(rawMediaId, 'id do arquivo')
-      const destinationId = requireId(rawDestinationId, 'id da pasta de destino')
+      if (typeof rawDestinationPath !== 'string' || !path.isAbsolute(rawDestinationPath)) {
+        return { status: 'error', message: 'Pasta de destino inválida' }
+      }
 
       const media = db.getMediaFile(mediaId)
       if (!media) return { status: 'error', message: 'Arquivo não está mais no catálogo' }
 
-      const destination = db.getDestinationFolder(destinationId)
-      if (!destination) return { status: 'error', message: 'Pasta de destino não encontrada' }
+      // A pasta clicada na árvore pode ser uma pasta de destino já cadastrada
+      // ou uma subpasta real que o usuário nunca "criou" pelo app — cadastra
+      // na hora para as duas situações virarem o mesmo caminho a partir daqui.
+      const destination =
+        db.findDestinationByPath(rawDestinationPath) ??
+        db.insertDestinationFolder(rawDestinationPath, path.basename(rawDestinationPath))
 
       try {
         const newPath = await moveFile(media.path, destination.path)

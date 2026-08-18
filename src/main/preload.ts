@@ -10,6 +10,7 @@ import type {
   RescanResult,
   ScanProgress,
   SourceFolder,
+  TreeFolder,
   UndoResult,
 } from '../shared/types'
 
@@ -43,8 +44,23 @@ const api = {
   /** Fila do feed: arquivos com organized = 0, na ordem de descoberta. */
   listUnorganizedMedia: (): Promise<MediaFile[]> => ipcRenderer.invoke(IPC.listUnorganizedMedia),
 
+  /** Todos os arquivos favoritados, independente de organizado. */
+  listFavorites: (): Promise<MediaFile[]> => ipcRenderer.invoke(IPC.listFavorites),
+
+  /** Inverte o favorito do arquivo; devolve o novo estado. */
+  toggleFavorite: (mediaId: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.toggleFavorite, mediaId),
+
   /** Pastas de destino, mais recentemente usadas primeiro. */
   listDestinations: (): Promise<DestinationFolder[]> => ipcRenderer.invoke(IPC.listDestinations),
+
+  /** Só as raízes da árvore: pastas de destino que não estão dentro de outra. */
+  listRootDestinations: (): Promise<DestinationFolder[]> =>
+    ipcRenderer.invoke(IPC.listRootDestinations),
+
+  /** Subpastas reais de um caminho, lidas ao vivo do disco (não do banco). */
+  listSubfolders: (path: string): Promise<TreeFolder[]> =>
+    ipcRenderer.invoke(IPC.listSubfolders, path),
 
   /** Raiz sugerida para novas pastas (a última escolhida, ou ~/Vídeos). */
   organizationRoot: (): Promise<string> => ipcRenderer.invoke(IPC.organizationRoot),
@@ -67,9 +83,9 @@ const api = {
   createDestination: (name: string, parentPath: string): Promise<CreateDestinationResult> =>
     ipcRenderer.invoke(IPC.createDestination, name, parentPath),
 
-  /** Move o arquivo para a pasta escolhida e marca como organizado. */
-  organizeMedia: (mediaId: number, destinationId: number): Promise<OrganizeResult> =>
-    ipcRenderer.invoke(IPC.organizeMedia, mediaId, destinationId),
+  /** Move o arquivo para a pasta escolhida (por caminho) e marca como organizado. */
+  organizeMedia: (mediaId: number, destinationPath: string): Promise<OrganizeResult> =>
+    ipcRenderer.invoke(IPC.organizeMedia, mediaId, destinationPath),
 
   /** Move o arquivo de volta para onde estava e desmarca. */
   undoOrganize: (mediaId: number): Promise<UndoResult> =>

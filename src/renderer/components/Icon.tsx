@@ -16,15 +16,29 @@ const PATHS = {
   arrowUp: 'm18 15-6-6-6 6',
   arrowDown: 'm6 9 6 6 6-6',
   refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6',
+  heart: 'M12 21s-7.5-4.6-10-9.3C.5 8.4 2.2 5 5.6 5c1.9 0 3.4 1 4.4 2.4C11 6 12.5 5 14.4 5 17.8 5 19.5 8.4 22 11.7 19.5 16.4 12 21 12 21Z',
+  home: 'M4 11 12 4l8 7M6 10v9a1 1 0 0 0 1 1h4v-6h2v6h4a1 1 0 0 0 1-1v-9',
+  chevron: 'm9 6 6 6-6 6',
+  plus: 'M12 5v14M5 12h14',
+  close: 'M6 6l12 12M18 6 6 18',
 } as const
 
 export type IconName = keyof typeof PATHS
 
-export default function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) {
+export default function Icon({
+  name,
+  className = 'h-5 w-5',
+  filled = false,
+}: {
+  name: IconName
+  className?: string
+  /** Só o coração usa isso hoje: contorno vs preenchido conforme favoritado. */
+  filled?: boolean
+}) {
   return (
     <svg
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth={2}
       strokeLinecap="round"

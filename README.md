@@ -5,7 +5,19 @@ TypeScript, Vite e TailwindCSS. Alvo: Linux (Zorin OS / Ubuntu).
 
 **Status:** fluxo principal completo. Cadastro de pastas pelo seletor nativo,
 escaneamento recursivo, catálogo em SQLite, feed vertical estilo TikTok tocando
-os vídeos direto do disco, e organização em pastas de destino com desfazer.
+os vídeos direto do disco, organização em pastas de destino com desfazer, e
+empacotamento para Linux (`.AppImage` e `.deb`, ver seção própria abaixo).
+
+## Estado do projeto
+
+- [x] Etapa 1: Setup Electron + React + TypeScript + TailwindCSS
+- [x] Etapa 2: Cadastro de pastas de origem + scan de arquivos
+- [x] Etapa 3: Feed vertical (scroll estilo TikTok)
+- [x] Etapa 4: Organização (mover para pasta)
+- [x] Etapa 5: Polimento visual
+- [x] Etapa 6: Empacotamento Linux
+- [ ] Etapa 7: README / GitHub
+- [x] Reformulação de design (feed inicial, painel lateral de destino e favoritos)
 
 ## Identidade visual
 
@@ -37,6 +49,7 @@ sem tocar em nenhuma tela.
 | `npm run build` | Typecheck + empacota main (`dist-electron/`) e renderer (`dist/renderer/`) |
 | `npm run preview` | Build + abre a janela carregando os arquivos compilados (sem Vite) |
 | `npm run typecheck` | Checagem de tipos dos dois lados, sem emitir nada |
+| `npm run package` | Build + gera o `.AppImage` e o `.deb` em `release/` |
 
 ## Estrutura
 
@@ -130,17 +143,82 @@ fica só com a checagem de tipos (`npm run typecheck`, que o `build` roda antes)
 
 ## Particularidades desta máquina (Zorin/Wayland)
 
-Duas coisas foram descobertas rodando aqui e já estão resolvidas nos scripts:
+Duas coisas foram descobertas rodando aqui e já estão resolvidas:
 
-1. **`--ozone-platform=x11`** — o backend Wayland nativo do Chromium causa
-   segfault nesta sessão. O app roda via XWayland. Para testar o Wayland nativo
-   quando/se isso for corrigido: `OZONE=wayland npm run dev`. O flag precisa ser
-   argumento de linha de comando; `app.commandLine.appendSwitch` e
-   `ELECTRON_OZONE_PLATFORM_HINT` são aplicados tarde demais e não evitam o crash.
+1. **Backend Ozone acompanha a sessão** — em GNOME/Wayland, o app usa Wayland;
+   numa sessão X11, usa X11. Forçar X11 no Wayland fazia o renderizador por
+   software passar pelo XWayland e falhar com `XGetWindowAttributes failed`.
+   Para diagnóstico, o backend ainda pode ser sobrescrito ao iniciar, por
+   exemplo: `OZONE=x11 video-organizer`.
 2. **`env -u ELECTRON_RUN_AS_NODE`** — editores baseados em Electron (VS Code)
    exportam `ELECTRON_RUN_AS_NODE=1` para processos filhos, o que faz o binário do
    Electron rodar como Node puro (`app` fica `undefined`, nenhuma janela abre).
    Os scripts removem a variável antes de iniciar.
+3. **Renderização por software** — nesta combinação Intel i915 + Zorin/Wayland,
+   o processo de GPU do Chromium pode encerrar com `exit_code=11` e deixar a
+   janela vazia. O app desativa a aceleração de hardware antes do Chromium subir.
+   Para testar a GPU novamente depois de atualizar o sistema ou o driver:
+   `VIDEO_ORGANIZER_ENABLE_GPU=1 video-organizer`.
 
-Quando formos empacotar para Linux, o `--ozone-platform=x11` precisa ir para o
-`Exec=` do `.desktop` gerado pelo empacotador (ou virar um wrapper de launch).
+## Empacotamento para Linux
+
+`npm run package` builda tudo e roda o [electron-builder](https://www.electron.build/),
+configurado em `package.json` (chave `"build"`), gerando dois artefatos em
+`release/`:
+
+- **`.AppImage`** — um único arquivo executável, sem instalação; funciona em
+  qualquer distro Linux (precisa de `libfuse2` no sistema em distros que não a
+  trazem mais por padrão — ver abaixo).
+- **`.deb`** — pacote para instalar via `apt`/`dpkg` no Zorin OS e derivados de
+  Ubuntu/Debian.
+
+Pontos que valem saber:
+
+- **Ícone**: `build/icon.svg` é a fonte editável (um placeholder simples — um
+  quadrado arredondado na cor de destaque do app com um triângulo de "play");
+  `build/icon.png` (1024×1024) é o que o electron-builder de fato usa, porque
+  ele não rasteriza SVG. Trocando o ícone definitivo, é só sobrescrever os dois
+  (ou só o `.png`, se o SVG não importar mais) — nenhuma outra configuração
+  precisa mudar.
+- **Nome, versão e identidade**: `productName` ("Video Organizer") é o nome
+  visível — no launcher, no título da janela, no nome do pacote `.deb`
+  legível. `name` ("video-organizer", em `package.json`) continua sendo só o
+  identificador do pacote npm. `version` é o que aparece no nome dos arquivos
+  gerados. `appId` (`com.luisleles.videoorganizer`, dentro de `"build"`) é um
+  identificador interno estável — não precisa refletir nada visível, mas
+  convém não trocar depois de publicado, pois é o que o SO usa para associar
+  janela/ícone ao app.
+- **Módulo nativo**: `better-sqlite3` não pode ir dentro do `app.asar` (um
+  `.node` não pode ser carregado de dentro do arquivo empacotado) — `asarUnpack`
+  cuida disso, deixando o binário nativo solto em `resources/app.asar.unpacked/`.
+- **Rebuild automático**: o electron-builder roda seu próprio `electron-rebuild`
+  antes de empacotar, então o `.node` do `better-sqlite3` sai já compilado para
+  a versão do Electron do projeto — exige `python3`, `make` e `g++`, os mesmos
+  pré-requisitos do `postinstall` (ver seção do banco de dados acima).
+
+### Instalando o `.deb` gerado
+
+```bash
+sudo apt install ./release/video-organizer-1.0.3-amd64.deb
+```
+
+Usar `apt install ./arquivo.deb` (com o `./` na frente) em vez de `dpkg -i` é o
+que faz o `apt` também resolver e instalar sozinho as dependências do pacote
+(GTK, libnotify, libnss etc.) — com `dpkg -i` puro, dependência faltando vira
+erro manual para resolver com `apt --fix-broken install` depois.
+
+Depois de instalado, o app aparece no menu de aplicativos do Zorin (categoria
+Vídeo) como "Video Organizer", e também dá para abrir pelo terminal com
+`video-organizer`. Para desinstalar: `sudo apt remove video-organizer`.
+
+### Rodando o `.AppImage`
+
+```bash
+chmod +x release/video-organizer-1.0.3-x86_64.AppImage
+./release/video-organizer-1.0.3-x86_64.AppImage
+```
+
+Não precisa de `sudo` nem de instalação — o arquivo já é o app inteiro. Se o
+Zorin reclamar de FUSE ao abrir (`dlopen(): error loading libfuse.so.2` — comum
+em Ubuntu 22.04+ e derivados, que pararam de trazer FUSE2 por padrão):
+`sudo apt install libfuse2t64` (ou `libfuse2` em versões mais antigas).

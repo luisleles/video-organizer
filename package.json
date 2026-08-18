@@ -1,6 +1,8 @@
 {
   "name": "video-organizer",
-  "version": "0.1.0",
+  "productName": "Video Organizer",
+  "desktopName": "video-organizer.desktop",
+  "version": "1.0.3",
   "description": "Organizador de vídeos desktop",
   "author": "ll",
   "license": "MIT",
@@ -10,12 +12,13 @@
     "dev": "concurrently -k -n vite,main,electron -c cyan,yellow,magenta \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:electron\"",
     "dev:renderer": "vite",
     "dev:main": "node scripts/build-main.mjs --watch",
-    "dev:electron": "wait-on tcp:5173 dist-electron/main.js dist-electron/preload.js && env -u ELECTRON_RUN_AS_NODE electron . --ozone-platform=${OZONE:-x11}",
+    "dev:electron": "wait-on tcp:5173 dist-electron/main.js dist-electron/preload.js && env -u ELECTRON_RUN_AS_NODE electron .",
     "build": "npm run typecheck && npm run build:main && npm run build:renderer",
     "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "preview": "npm run build && env -u ELECTRON_RUN_AS_NODE electron . --ozone-platform=${OZONE:-x11}",
+    "preview": "npm run build && env -u ELECTRON_RUN_AS_NODE electron .",
+    "package": "npm run build && electron-builder --linux AppImage deb",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
   },
   "devDependencies": {
@@ -27,6 +30,7 @@
     "@vitejs/plugin-react": "^6.0.5",
     "concurrently": "^10.0.5",
     "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
@@ -37,5 +41,32 @@
     "better-sqlite3": "^13.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
+  },
+  "build": {
+    "appId": "com.luisleles.videoorganizer",
+    "artifactName": "video-organizer-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/renderer/**/*"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "build/icon.png",
+      "category": "AudioVideo",
+      "executableName": "video-organizer",
+      "maintainer": "Luis Leles <00luisleless@gmail.com>",
+      "synopsis": "Organize vídeos e imagens de HDs externos num feed vertical",
+      "syncDesktopName": true
+    },
+    "deb": {
+      "packageCategory": "video"
+    }
   }
 }

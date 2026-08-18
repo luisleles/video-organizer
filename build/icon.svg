@@ -1,0 +1,10 @@
+<!--
+  Ícone placeholder do app — mesmo design do build/icon.png (gerado a partir
+  deste desenho), na cor de destaque do app (--color-accent no index.css,
+  Tailwind sky-500). Fonte editável: troque este arquivo e gere um novo
+  icon.png (1024x1024 ou maior) quando o ícone definitivo estiver pronto.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect x="90" y="90" width="844" height="844" rx="189" fill="#0EA5E9" />
+  <polygon points="429,357 429,667 685,512" fill="#FFFFFF" />
+</svg>

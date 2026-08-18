@@ -8,14 +8,43 @@ import { registerMediaProtocol, registerMediaSchemePrivileges } from './media-pr
 // Chromium, senão os privilégios do esquema media:// são ignorados.
 registerMediaSchemePrivileges()
 
+// Nesta combinação Zorin/Wayland + Intel i915, o processo de GPU do Chromium
+// encerra com SIGSEGV antes de produzir o primeiro frame. Como a janela depende
+// desse frame para exibir o renderer, o resultado é uma janela vazia. Renderizar
+// por software é um pouco mais pesado durante a reprodução, mas deixa o app
+// funcional e não altera a decodificação nem o acesso aos arquivos. A opção
+// fica antes de whenReady porque o Chromium decide o backend gráfico ao subir.
+// O opt-in permite testar novamente a GPU depois de uma atualização de driver.
+if (process.env.VIDEO_ORGANIZER_ENABLE_GPU !== '1') {
+  app.disableHardwareAcceleration()
+}
+
+// Usa o backend nativo da sessão. Forçar X11 dentro do GNOME/Wayland faz o
+// bitmap presenter de software passar pelo XWayland; nesta máquina ele recebe
+// um XID inválido e não desenha a interface. O override OZONE continua útil
+// para diagnóstico sem precisar gerar outro pacote.
+const sessionOzonePlatform =
+  process.platform === 'linux' &&
+  process.env.XDG_SESSION_TYPE === 'wayland' &&
+  process.env.WAYLAND_DISPLAY
+    ? 'wayland'
+    : 'x11'
+const ozonePlatform = process.env.OZONE || sessionOzonePlatform
+app.commandLine.appendSwitch('ozone-platform', ozonePlatform)
+
+console.log(
+  '[graphics]',
+  `ozone=${ozonePlatform}`,
+  `acceleration=${process.env.VIDEO_ORGANIZER_ENABLE_GPU === '1' ? 'hardware' : 'software'}`,
+)
+
 // Pinça no touchpad = zoom na mídia. No Windows e no macOS o Chromium já
 // converte o gesto de dois dedos em eventos `wheel` com `ctrlKey: true` por
 // padrão — é o sinal que `useZoomPan`, em MediaFeed.tsx, escuta para dar zoom.
 // No Linux essa conversão fica desligada por padrão e precisa ser pedida
-// explicitamente por linha de comando, antes do Chromium subir; setar depois
-// do app pronto não tem efeito. Testado aqui via `--ozone-platform=x11`
-// (ver README) — em Wayland nativo a conversão passa pelo compositor, não por
-// esta flag, mas ligá-la de qualquer forma não tem efeito colateral.
+// explicitamente por linha de comando, pelo mesmo motivo acima. Em Wayland
+// nativo a conversão passa pelo compositor, não por esta flag, mas ligá-la de
+// qualquer forma não tem efeito colateral.
 app.commandLine.appendSwitch('enable-pinch')
 
 // Em dev (`npm run dev`) o app não está empacotado: carregamos a URL do Vite.
@@ -45,7 +74,39 @@ function createWindow(): void {
     },
   })
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  const showWindow = (): void => {
+    if (mainWindow && !mainWindow.isVisible()) mainWindow.show()
+  }
+
+  mainWindow.once('ready-to-show', showWindow)
+
+  // Falhas de preload/renderer antes ficavam escondidas no DevTools do app
+  // empacotado. Estes logs deixam o terminal dizer se o HTML carregou, se o
+  // preload falhou ou se o processo do React encerrou. Exibir também ao fim do
+  // load evita depender exclusivamente do primeiro frame do compositor.
+  mainWindow.webContents.once('did-finish-load', () => {
+    console.log('[renderer] loaded', mainWindow?.webContents.getURL())
+    showWindow()
+  })
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame) {
+        console.error('[renderer] load failed', errorCode, errorDescription, validatedURL)
+      }
+    },
+  )
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    console.error('[preload] failed', preloadPath, error)
+  })
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[renderer] process gone', details.reason, details.exitCode)
+  })
+  mainWindow.webContents.on('console-message', (details) => {
+    if (details.level === 'warning' || details.level === 'error') {
+      console.error(`[renderer:${details.level}]`, details.message, details.sourceId, details.lineNumber)
+    }
+  })
 
   // Último tamanho conhecido da janela FORA da tela cheia — atualizado a cada
   // redimensionamento/movimento enquanto não está em tela cheia. Não dá pra

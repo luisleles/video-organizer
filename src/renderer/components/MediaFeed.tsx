@@ -864,6 +864,8 @@ function Slide({
 const MIN_ZOOM = 1
 const MAX_ZOOM = 4
 const ZOOM_STEP = 0.5
+/** Fator que converte o deltaY de um evento wheel de pinça em variação de zoom. */
+const PINCH_SENSITIVITY = 0.01
 
 /**
  * Zoom e arraste, compartilhado por imagem e vídeo.
@@ -927,10 +929,27 @@ function useZoomPan(active: boolean) {
 
     function handleWheel(event: WheelEvent) {
       // Sem o modificador, o scroll é do feed (trocar de item) — só intercepta
-      // com Ctrl, senão rolar a roda numa mídia nunca navegaria.
+      // com Ctrl, senão rolar a roda numa mídia nunca navegaria. É o mesmo
+      // sinal que representa a pinça de dois dedos no touchpad: o Chromium
+      // converte "afastar/aproximar os dedos" nestes mesmos eventos wheel com
+      // ctrlKey (ver o `enable-pinch` em main.ts, que liga essa conversão no
+      // Linux), então nenhum código extra é necessário para reconhecer o gesto
+      // em si — só para o zoom reagir bem à cadência dele, abaixo.
       if (!event.ctrlKey) return
       event.preventDefault()
-      applyZoom((current) => current + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP))
+      // Proporcional ao deltaY, com teto de um ZOOM_STEP por evento: um clique
+      // discreto de roda de mouse (deltaY grande, ~100) continua valendo o
+      // mesmo meio passo de sempre — o teto o satura ali. Já uma pinça real
+      // dispara dezenas de eventos pequenos em sequência (como um scroll
+      // contínuo); tratar cada um como um passo inteiro faria o zoom saltar de
+      // 1x a 4x na primeira leve aproximação dos dedos. Escalando pelo próprio
+      // deltaY, a soma dos eventos acompanha o quanto os dedos de fato se
+      // moveram.
+      const change = Math.min(
+        ZOOM_STEP,
+        Math.max(-ZOOM_STEP, -event.deltaY * PINCH_SENSITIVITY),
+      )
+      applyZoom((current) => current + change)
     }
 
     element.addEventListener('wheel', handleWheel, { passive: false })

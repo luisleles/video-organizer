@@ -8,6 +8,16 @@ import { registerMediaProtocol, registerMediaSchemePrivileges } from './media-pr
 // Chromium, senão os privilégios do esquema media:// são ignorados.
 registerMediaSchemePrivileges()
 
+// Pinça no touchpad = zoom na mídia. No Windows e no macOS o Chromium já
+// converte o gesto de dois dedos em eventos `wheel` com `ctrlKey: true` por
+// padrão — é o sinal que `useZoomPan`, em MediaFeed.tsx, escuta para dar zoom.
+// No Linux essa conversão fica desligada por padrão e precisa ser pedida
+// explicitamente por linha de comando, antes do Chromium subir; setar depois
+// do app pronto não tem efeito. Testado aqui via `--ozone-platform=x11`
+// (ver README) — em Wayland nativo a conversão passa pelo compositor, não por
+// esta flag, mas ligá-la de qualquer forma não tem efeito colateral.
+app.commandLine.appendSwitch('enable-pinch')
+
 // Em dev (`npm run dev`) o app não está empacotado: carregamos a URL do Vite.
 // Empacotado, carregamos o HTML gerado por `npm run build`.
 const isDev = !app.isPackaged

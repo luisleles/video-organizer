@@ -165,5 +165,5 @@ function Badge({ className, children }: { className: string; children: React.Rea
 }
 
 function basename(fullPath: string): string {
-  return fullPath.split('/').filter(Boolean).pop() ?? fullPath
+  return fullPath.split(/[\\/]/).filter(Boolean).pop() ?? fullPath
 }

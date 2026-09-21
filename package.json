@@ -12,17 +12,18 @@
     "dev": "concurrently -k -n vite,main,electron -c cyan,yellow,magenta \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:electron\"",
     "dev:renderer": "vite",
     "dev:main": "node scripts/build-main.mjs --watch",
-    "dev:electron": "wait-on tcp:5173 dist-electron/main.js dist-electron/preload.js && env -u ELECTRON_RUN_AS_NODE electron .",
+    "dev:electron": "wait-on tcp:5173 dist-electron/main.js dist-electron/preload.js && node scripts/start-electron.mjs --dev",
     "build": "npm run typecheck && npm run build:main && npm run build:renderer",
     "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "preview": "npm run build && env -u ELECTRON_RUN_AS_NODE electron .",
-    "package": "npm run build && electron-builder --linux AppImage deb",
+    "preview": "npm run build && node scripts/start-electron.mjs",
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win --x64",
+    "package:linux": "npm run build && electron-builder --linux AppImage deb",
+    "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.2.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^9.6.0",
     "@types/react": "^19.2.18",
@@ -44,6 +45,7 @@
   },
   "build": {
     "appId": "com.luisleles.videoorganizer",
+    "npmRebuild": false,
     "artifactName": "video-organizer-${version}-${arch}.${ext}",
     "directories": {
       "output": "release",
@@ -56,6 +58,24 @@
     "asarUnpack": [
       "**/*.node"
     ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "artifactName": "video-organizer-${version}-${arch}-nsis.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Video Organizer",
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": ["pt_BR", "en_US"]
+    },
+    "portable": {
+      "artifactName": "video-organizer-${version}-${arch}-portable.${ext}"
+    },
     "linux": {
       "target": ["AppImage", "deb"],
       "icon": "build/icon.png",

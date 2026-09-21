@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { IPC } from '../shared/ipc'
+import { validateFolderName } from '../shared/folder-name'
 import type {
   AddFolderResult,
   CreateDestinationResult,
@@ -237,7 +238,7 @@ export function registerIpcHandlers(): void {
       const name = typeof rawName === 'string' ? rawName.trim() : ''
       const parent = typeof rawParent === 'string' && rawParent ? rawParent : organizationRoot()
 
-      const nameError = validateFolderName(name)
+      const nameError = validateFolderName(name, process.platform)
       if (nameError) return { status: 'invalid-name', message: nameError }
 
       if (!path.isAbsolute(parent)) {
@@ -398,19 +399,6 @@ function requireId(value: unknown, label: string): number {
     throw new Error(`${label} inválido: ${String(value)}`)
   }
   return value
-}
-
-/**
- * O nome vem digitado pelo usuário e vira caminho no disco. Sem esta validação,
- * digitar `../../..` criaria pasta fora da raiz escolhida.
- */
-function validateFolderName(name: string): string | null {
-  if (!name) return 'Escolha um nome para a pasta'
-  if (name === '.' || name === '..') return 'Esse nome não pode ser usado'
-  if (name.includes('/') || name.includes('\0')) return 'O nome não pode conter barras'
-  if (name.startsWith('.')) return 'Nomes começando com ponto ficam ocultos no Linux'
-  if (name.length > 255) return 'O nome é longo demais'
-  return null
 }
 
 function organizeErrorFor(error: unknown): OrganizeResult {

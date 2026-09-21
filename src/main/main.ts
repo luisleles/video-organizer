@@ -15,7 +15,9 @@ registerMediaSchemePrivileges()
 // funcional e não altera a decodificação nem o acesso aos arquivos. A opção
 // fica antes de whenReady porque o Chromium decide o backend gráfico ao subir.
 // O opt-in permite testar novamente a GPU depois de uma atualização de driver.
-if (process.env.VIDEO_ORGANIZER_ENABLE_GPU !== '1') {
+const useHardwareAcceleration = process.env.VIDEO_ORGANIZER_ENABLE_GPU === '1' ||
+  (process.platform !== 'linux' && process.env.VIDEO_ORGANIZER_ENABLE_GPU !== '0')
+if (!useHardwareAcceleration) {
   app.disableHardwareAcceleration()
 }
 
@@ -30,12 +32,17 @@ const sessionOzonePlatform =
     ? 'wayland'
     : 'x11'
 const ozonePlatform = process.env.OZONE || sessionOzonePlatform
-app.commandLine.appendSwitch('ozone-platform', ozonePlatform)
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('ozone-platform', ozonePlatform)
+}
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.luisleles.videoorganizer')
+}
 
 console.log(
   '[graphics]',
-  `ozone=${ozonePlatform}`,
-  `acceleration=${process.env.VIDEO_ORGANIZER_ENABLE_GPU === '1' ? 'hardware' : 'software'}`,
+  `platform=${process.platform}`,
+  `acceleration=${useHardwareAcceleration ? 'hardware' : 'software'}`,
 )
 
 // Pinça no touchpad = zoom na mídia. No Windows e no macOS o Chromium já
@@ -49,7 +56,7 @@ app.commandLine.appendSwitch('enable-pinch')
 
 // Em dev (`npm run dev`) o app não está empacotado: carregamos a URL do Vite.
 // Empacotado, carregamos o HTML gerado por `npm run build`.
-const isDev = !app.isPackaged
+const isDev = !app.isPackaged && process.env.VIDEO_ORGANIZER_DEV === '1'
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173'
 
 let mainWindow: BrowserWindow | null = null
@@ -132,7 +139,7 @@ function createWindow(): void {
   // garante que os dois batem, independente de como o gerenciador de janelas
   // do sistema lidou com a sincronização automática.
   mainWindow.webContents.on('enter-html-full-screen', () => {
-    if (!mainWindow) return
+    if (!mainWindow || process.platform !== 'linux') return
     const display = screen.getDisplayMatching(mainWindow.getBounds())
     // Um instante depois, não na mesma volta do laço de eventos: dá tempo do
     // próprio ajuste automático da janela terminar antes da nossa correção,
@@ -143,7 +150,7 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.on('leave-html-full-screen', () => {
-    if (!mainWindow) return
+    if (!mainWindow || process.platform !== 'linux') return
     const restoreBounds = lastWindowedBounds
     setTimeout(() => {
       mainWindow?.setBounds(restoreBounds)

@@ -1,7 +1,41 @@
 # video-organizer
 
 App desktop para organizar bibliotecas de vídeo, construído com Electron, React,
-TypeScript, Vite e TailwindCSS. Alvo: Linux (Zorin OS / Ubuntu).
+TypeScript, Vite e TailwindCSS. Alvos: Windows x64 e Linux (Zorin OS / Ubuntu).
+
+## Windows
+
+Para usar, abra `video-organizer-1.0.3-x64-nsis.exe` na pasta `release/` e
+siga o instalador. Ele permite escolher a pasta de instalação e cria atalhos
+na área de trabalho e no menu Iniciar. A alternativa
+`video-organizer-1.0.3-x64-portable.exe` abre sem instalação.
+Os dois usam o catálogo em `%APPDATA%\video-organizer\library.db`;
+a versão portátil também salva os dados no perfil do usuário.
+
+Para desenvolver ou gerar os executáveis no Windows, instale Node.js 24 LTS:
+
+```powershell
+npm ci
+npm test
+npm run dev
+# Gerar instalador e portátil em release/:
+npm run package:win
+```
+
+O SQLite 13 já inclui o binário Windows x64 via Node-API, portanto o fluxo
+normal não exige Python nem Visual Studio Build Tools. A recompilação de
+dependências no empacotamento está desativada. Ao atualizar o SQLite ou adicionar
+outro módulo nativo, verifique a compatibilidade com a versão do Electron.
+
+A aceleração de hardware fica ligada por padrão no Windows. Para diagnosticar
+problemas de driver no desenvolvimento: `$env:VIDEO_ORGANIZER_ENABLE_GPU='0'`.
+O contorno de GPU/Ozone usado no Linux fica restrito àquela plataforma.
+O carregamento de mídia aceita letras de unidade, discos externos, caminhos
+UNC e nomes com espaços e acentos. Os formatos reproduzíveis continuam
+dependendo dos codecs disponíveis no Electron.
+
+O instalador usa [NSIS via electron-builder](https://www.electron.build/nsis/).
+Os pacotes locais não recebem assinatura digital de um editor.
 
 **Status:** fluxo principal completo. Cadastro de pastas pelo seletor nativo,
 escaneamento recursivo, catálogo em SQLite, feed vertical estilo TikTok tocando
@@ -49,7 +83,10 @@ sem tocar em nenhuma tela.
 | `npm run build` | Typecheck + empacota main (`dist-electron/`) e renderer (`dist/renderer/`) |
 | `npm run preview` | Build + abre a janela carregando os arquivos compilados (sem Vite) |
 | `npm run typecheck` | Checagem de tipos dos dois lados, sem emitir nada |
-| `npm run package` | Build + gera o `.AppImage` e o `.deb` em `release/` |
+| `npm run package` | Build + gera os pacotes da plataforma atual em `release/` |
+| `npm run package:win` | Build + gera instalador NSIS e portátil `.exe` x64 |
+| `npm run package:linux` | Build + gera `.AppImage` e `.deb` |
+| `npm test` | Testes de caminhos de mídia e nomes de pasta |
 
 ## Estrutura
 
@@ -94,9 +131,9 @@ Em vez disso, `webSecurity` continua ligado e o app registra um esquema próprio
 `media://`, servido por `src/main/media-protocol.ts`. A trava é o catálogo: o
 handler só entrega um arquivo se ele estiver em `media_files`, ou seja, se veio
 de uma pasta que o usuário escolheu no seletor nativo. Pedidos a qualquer outro
-caminho respondem 404 — inclusive tentativas de path traversal, porque o esquema
-é registrado como `standard` e o Chromium normaliza `..` antes de chegar ao
-nosso código.
+caminho respondem 404. A URL usa `media://local/file?path=...`, com o caminho
+codificado na query para preservar letras de unidade, barras e nomes especiais.
+O acesso é autorizado pela correspondência exata desse caminho no catálogo.
 
 O handler também implementa requisições parciais (`Range` / 206), que é o que
 permite ao `<video>` começar a tocar e fazer seek sem carregar o arquivo inteiro,
@@ -128,10 +165,10 @@ projeto, porque o app instalado fica numa pasta somente-leitura). Duas tabelas:
 `source_folders` e `media_files`, ligadas por `ON DELETE CASCADE` — remover uma
 pasta do cadastro descarta os arquivos catalogados dela, sem tocar no disco.
 
-`better-sqlite3` é módulo nativo e precisa ser compilado contra o ABI do Electron,
-não o do Node do sistema. O `postinstall` roda `electron-rebuild` automaticamente;
-se aparecer `NODE_MODULE_VERSION` incompatível, rode `npx electron-rebuild -f -w
-better-sqlite3`. Exige `python3`, `make` e `g++` instalados.
+`better-sqlite3` 13 é módulo nativo via Node-API e inclui binários prontos para
+as plataformas suportadas. O projeto usa esses binários com Electron 43;
+`npmRebuild: false` evita recompilações desnecessárias. O lockfile preserva
+`gypfile: false` do pacote para o npm não iniciar o `node-gyp` implicitamente.
 
 ## Por que esbuild em vez de tsc no lado Electron
 
@@ -150,10 +187,10 @@ Duas coisas foram descobertas rodando aqui e já estão resolvidas:
    software passar pelo XWayland e falhar com `XGetWindowAttributes failed`.
    Para diagnóstico, o backend ainda pode ser sobrescrito ao iniciar, por
    exemplo: `OZONE=x11 video-organizer`.
-2. **`env -u ELECTRON_RUN_AS_NODE`** — editores baseados em Electron (VS Code)
+2. **Remoção de `ELECTRON_RUN_AS_NODE`** — editores baseados em Electron (VS Code)
    exportam `ELECTRON_RUN_AS_NODE=1` para processos filhos, o que faz o binário do
    Electron rodar como Node puro (`app` fica `undefined`, nenhuma janela abre).
-   Os scripts removem a variável antes de iniciar.
+   `scripts/start-electron.mjs` remove a variável antes de iniciar, também no Windows.
 3. **Renderização por software** — nesta combinação Intel i915 + Zorin/Wayland,
    o processo de GPU do Chromium pode encerrar com `exit_code=11` e deixar a
    janela vazia. O app desativa a aceleração de hardware antes do Chromium subir.
@@ -162,7 +199,7 @@ Duas coisas foram descobertas rodando aqui e já estão resolvidas:
 
 ## Empacotamento para Linux
 
-`npm run package` builda tudo e roda o [electron-builder](https://www.electron.build/),
+`npm run package:linux` builda tudo e roda o [electron-builder](https://www.electron.build/),
 configurado em `package.json` (chave `"build"`), gerando dois artefatos em
 `release/`:
 
@@ -191,10 +228,9 @@ Pontos que valem saber:
 - **Módulo nativo**: `better-sqlite3` não pode ir dentro do `app.asar` (um
   `.node` não pode ser carregado de dentro do arquivo empacotado) — `asarUnpack`
   cuida disso, deixando o binário nativo solto em `resources/app.asar.unpacked/`.
-- **Rebuild automático**: o electron-builder roda seu próprio `electron-rebuild`
-  antes de empacotar, então o `.node` do `better-sqlite3` sai já compilado para
-  a versão do Electron do projeto — exige `python3`, `make` e `g++`, os mesmos
-  pré-requisitos do `postinstall` (ver seção do banco de dados acima).
+- **Módulo nativo pronto**: o empacotamento mantém o binário Node-API do
+  `better-sqlite3` sem recompilar. Verifique novamente sua compatibilidade ao
+  atualizar a versão do Electron ou do SQLite.
 
 ### Instalando o `.deb` gerado
 

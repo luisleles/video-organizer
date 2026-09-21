@@ -793,7 +793,7 @@ function undoErrorMessage(result: UndoResult): string {
 }
 
 function basename(fullPath: string): string {
-  return fullPath.split('/').filter(Boolean).pop() ?? fullPath
+  return fullPath.split(/[\\/]/).filter(Boolean).pop() ?? fullPath
 }
 
 /** `95` -> `"01:35"` (MM:SS). Sem hora: os vídeos deste app não chegam perto disso. */

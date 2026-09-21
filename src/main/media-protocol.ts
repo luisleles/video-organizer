@@ -23,9 +23,8 @@ const MIME_TYPES: Record<string, string> = {
  * Precisa rodar ANTES de app.whenReady(): os privilégios de um esquema são lidos
  * na inicialização do Chromium e ignorados se registrados depois.
  *
- * - standard: faz a URL ser parseada como URL de verdade, com normalização de
- *   `..` — é o que impede path traversal (media://local/a/../../etc/passwd vira
- *   /etc/passwd antes de chegar no nosso código, e aí o allowlist barra).
+ * - standard: permite host fixo e parsing convencional de URL. O caminho do
+ *   arquivo vai na query; a autorização é sempre a consulta exata ao catálogo.
  * - secure: sem isso o Chromium trata o esquema como origem insegura e bloqueia
  *   o carregamento a partir de http://localhost:5173 (o renderer em dev).
  * - stream: habilita requisições parciais (Range), que o <video> usa para

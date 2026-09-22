@@ -628,7 +628,7 @@ export default function MediaFeed({
               scroll; os botões reativam o clique individualmente. */}
           <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-6">
             <div className="flex items-start justify-between gap-4">
-              <div className="rounded-card min-w-0 bg-black/60 px-4 py-2.5 backdrop-blur">
+              <div className="rounded-card border-line bg-surface/90 min-w-0 border px-4 py-2.5 backdrop-blur">
                 <p className="truncate text-sm font-medium" title={active?.path}>
                   {active?.filename}
                 </p>
@@ -650,7 +650,7 @@ export default function MediaFeed({
                   }}
                   title="Ver só uma pasta de destino"
                   aria-label="Ver só uma pasta de destino"
-                  className="rounded-card border-line-strong text-fg pointer-events-auto ml-auto max-w-64 shrink-0 truncate border bg-black/60 px-3 py-2.5 text-sm backdrop-blur"
+                  className="rounded-card border-line-strong bg-surface/90 text-fg pointer-events-auto ml-auto max-w-64 shrink-0 truncate border px-3 py-2.5 text-sm backdrop-blur"
                 >
                   <option value="">
                     Todas as pastas ({folders.reduce((soma, pasta) => soma + pasta.total, 0)})
@@ -663,7 +663,7 @@ export default function MediaFeed({
                 </select>
               )}
 
-              <div className="rounded-card shrink-0 bg-black/60 px-4 py-2.5 text-sm tabular-nums backdrop-blur">
+              <div className="rounded-card border-line bg-surface/90 shrink-0 border px-4 py-2.5 text-sm tabular-nums backdrop-blur">
                 {mode === 'queue' ? (
                   <>
                     <span className="text-accent-hover font-semibold">
@@ -1355,10 +1355,10 @@ function RailButton({
       className="pointer-events-auto flex w-16 flex-col items-center gap-1 transition disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span
-        className={`flex h-14 w-14 items-center justify-center rounded-full text-xl backdrop-blur transition ${
+        className={`border-line flex h-14 w-14 items-center justify-center rounded-full border text-xl backdrop-blur transition hover:scale-105 ${
           highlighted
-            ? 'bg-accent/90 hover:bg-accent-hover hover:scale-105'
-            : 'bg-black/60 hover:bg-black/80 hover:scale-105'
+            ? 'bg-accent/90 hover:bg-accent-hover border-transparent text-white'
+            : 'bg-surface/90 hover:bg-surface-hover'
         } ${tone === 'favorite' ? 'text-negative' : ''}`}
       >
         <Icon name={icon} filled={iconFilled} className="h-6 w-6" />
@@ -1383,7 +1383,7 @@ function NavButton({
       onClick={onClick}
       onPointerDown={(event) => event.stopPropagation()}
       disabled={disabled}
-      className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-lg backdrop-blur transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
+      className="border-line bg-surface/90 hover:bg-surface-hover pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border text-lg backdrop-blur transition disabled:cursor-not-allowed disabled:opacity-30"
     >
       {children}
     </button>

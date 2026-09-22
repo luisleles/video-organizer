@@ -33,10 +33,10 @@ export default function NavRail({ screen, onNavigate }: NavRailProps) {
             title={item.label}
             aria-label={item.label}
             aria-current={active}
-            className={`pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur transition ${
+            className={`border-line pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur transition ${
               active
-                ? 'bg-accent/90 hover:bg-accent-hover text-white'
-                : 'text-fg-muted hover:text-fg bg-black/60 hover:bg-black/80'
+                ? 'bg-accent/90 hover:bg-accent-hover border-transparent text-white'
+                : 'text-fg-muted hover:text-fg bg-surface/90 hover:bg-surface-hover'
             }`}
           >
             <Icon name={item.icon} filled={item.icon === 'heart' && active} />

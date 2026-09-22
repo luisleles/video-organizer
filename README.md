@@ -5,10 +5,10 @@ TypeScript, Vite e TailwindCSS. Alvos: Windows x64 e Linux (Zorin OS / Ubuntu).
 
 ## Windows
 
-Para usar, abra `video-organizer-1.0.3-x64-nsis.exe` na pasta `release/` e
+Para usar, abra `video-organizer-1.0.4-x64-nsis.exe` na pasta `release/` e
 siga o instalador. Ele permite escolher a pasta de instalação e cria atalhos
 na área de trabalho e no menu Iniciar. A alternativa
-`video-organizer-1.0.3-x64-portable.exe` abre sem instalação.
+`video-organizer-1.0.4-x64-portable.exe` abre sem instalação.
 Os dois usam o catálogo em `%APPDATA%\video-organizer\library.db`;
 a versão portátil também salva os dados no perfil do usuário.
 
@@ -235,7 +235,7 @@ Pontos que valem saber:
 ### Instalando o `.deb` gerado
 
 ```bash
-sudo apt install ./release/video-organizer-1.0.3-amd64.deb
+sudo apt install ./release/video-organizer-1.0.4-amd64.deb
 ```
 
 Usar `apt install ./arquivo.deb` (com o `./` na frente) em vez de `dpkg -i` é o
@@ -250,8 +250,8 @@ Vídeo) como "Video Organizer", e também dá para abrir pelo terminal com
 ### Rodando o `.AppImage`
 
 ```bash
-chmod +x release/video-organizer-1.0.3-x86_64.AppImage
-./release/video-organizer-1.0.3-x86_64.AppImage
+chmod +x release/video-organizer-1.0.4-x86_64.AppImage
+./release/video-organizer-1.0.4-x86_64.AppImage
 ```
 
 Não precisa de `sudo` nem de instalação — o arquivo já é o app inteiro. Se o

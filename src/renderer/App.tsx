@@ -5,6 +5,7 @@ import FavoritesScreen from './screens/FavoritesScreen'
 import FeedScreen from './screens/FeedScreen'
 import ReviewScreen from './screens/ReviewScreen'
 import SettingsScreen from './screens/SettingsScreen'
+import { applyTheme, getStoredTheme, storeTheme, type Theme } from './theme'
 import type { LibraryStats } from '../shared/types'
 
 // Navegação por estado, sem roteador: são três telas e nenhuma URL para
@@ -17,6 +18,14 @@ import type { LibraryStats } from '../shared/types'
 export default function App() {
   const [screen, setScreen] = useState<Screen>('feed')
   const [stats, setStats] = useState<LibraryStats | null>(null)
+  // main.tsx já aplicou o tema salvo antes deste componente montar; o estado
+  // aqui só existe para o toggle em Configurações refletir na hora.
+  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme())
+  const setTheme = useCallback((next: Theme) => {
+    setThemeState(next)
+    applyTheme(next)
+    storeTheme(next)
+  }, [])
   // Vive aqui, não dentro do feed: é "global da sessão" de propósito — trocar
   // de tela e voltar não deve resetar pra "tamanho original" no meio do uso.
   const [fitMode, setFitMode] = useState<'original' | 'fill'>('original')
@@ -81,6 +90,8 @@ export default function App() {
             stats={stats}
             onStatsChanged={refreshStats}
             onBack={() => setScreen('feed')}
+            theme={theme}
+            onThemeChange={setTheme}
           />
         )}
       </div>

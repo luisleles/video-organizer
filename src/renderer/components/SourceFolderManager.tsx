@@ -10,7 +10,7 @@ type Notice = { kind: 'info' | 'warn' | 'error'; text: string }
 
 const NOTICE_STYLES: Record<Notice['kind'], string> = {
   info: 'border-accent-deep bg-accent-deep/15 text-accent-hover',
-  warn: 'border-amber-800 bg-amber-950/60 text-amber-200',
+  warn: 'border-warn/60 bg-warn/15 text-warn',
   error: 'border-negative/60 bg-negative/15 text-negative',
 }
 
@@ -136,10 +136,10 @@ export default function SourceFolderManager({ onChanged }: SourceFolderManagerPr
               </div>
 
               <div className="flex shrink-0 items-center gap-2 text-xs">
-                <Badge className="bg-indigo-950 text-indigo-300">
+                <Badge className="bg-video/15 text-video">
                   {folder.videoCount.toLocaleString('pt-BR')} vídeos
                 </Badge>
-                <Badge className="bg-teal-950 text-teal-300">
+                <Badge className="bg-image/15 text-image">
                   {folder.imageCount.toLocaleString('pt-BR')} imagens
                 </Badge>
               </div>

@@ -32,6 +32,11 @@
   --color-positive: oklch(69.6% 0.17 162.48);
   --color-negative: oklch(63.7% 0.237 25.331);
 
+  /* Avisos e badges de pasta (contagem de vídeos/imagens) */
+  --color-warn: oklch(79% 0.17 70);
+  --color-video: oklch(74% 0.13 275);
+  --color-image: oklch(74% 0.12 185);
+
   /* Cantos: painéis, cartões e controles seguem esta escala */
   --radius-control: 0.5rem;
   --radius-card: 0.75rem;
@@ -39,13 +44,43 @@
 }
 
 /*
- * O app é uma interface de mídia em tela cheia: dark é a decisão de produto, não
- * uma preferência do sistema. `color-scheme` faz o Chromium desenhar barras de
- * rolagem, campos de formulário e menus nativos em escuro também — sem isso
- * sobram retângulos brancos por cima de uma interface preta.
+ * Escuro é o tema padrão — decisão de produto, não a preferência do sistema
+ * (por isso não seguimos prefers-color-scheme) — mas o claro fica disponível
+ * nas Configurações. `theme.ts` escreve o atributo abaixo em <html> antes do
+ * primeiro render; sem escolha salva, cai no padrão escuro.
+ *
+ * `color-scheme` faz o Chromium desenhar barras de rolagem, campos de
+ * formulário e menus nativos no tom certo — sem isso sobram retângulos
+ * brancos (ou pretos) por cima da interface.
  */
 :root {
   color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-canvas: oklch(98.5% 0.003 264.695);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-hover: oklch(93.5% 0.008 260.031);
+
+  --color-line: oklch(89% 0.009 260.031);
+  --color-line-strong: oklch(80% 0.014 257.287);
+
+  --color-fg: oklch(23% 0.025 264.695);
+  --color-fg-muted: oklch(43% 0.032 256.788);
+  --color-fg-subtle: oklch(59% 0.028 257.281);
+
+  --color-accent: oklch(57% 0.18 237.323);
+  --color-accent-hover: oklch(47% 0.17 237.323);
+  --color-accent-deep: oklch(38% 0.14 241.966);
+
+  --color-positive: oklch(52% 0.15 162.48);
+  --color-negative: oklch(54% 0.22 25.331);
+
+  --color-warn: oklch(50% 0.15 70);
+  --color-video: oklch(48% 0.14 275);
+  --color-image: oklch(46% 0.12 185);
 }
 
 html,

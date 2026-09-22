@@ -41,6 +41,8 @@ const PATHS = {
   // Um só desenho pros dois modos de exibição: contorno = tamanho original,
   // preenchido (via a prop `filled`) = preencher tela.
   frame: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z',
+  sun: 'M12 3v2M12 19v2M5.64 5.64l1.42 1.42M16.94 16.94l1.42 1.42M3 12h2M19 12h2M5.64 18.36l1.42-1.42M16.94 7.06l1.42-1.42M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z',
+  moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z',
 } as const
 
 export type IconName = keyof typeof PATHS

@@ -2,15 +2,24 @@ import { useCallback, useEffect, useState } from 'react'
 import Icon from '../components/Icon'
 import LibraryProgress from '../components/LibraryProgress'
 import SourceFolderManager from '../components/SourceFolderManager'
+import type { Theme } from '../theme'
 import type { LibraryStats } from '../../shared/types'
 
 interface SettingsScreenProps {
   stats: LibraryStats | null
   onStatsChanged: () => void
   onBack: () => void
+  theme: Theme
+  onThemeChange: (theme: Theme) => void
 }
 
-export default function SettingsScreen({ stats, onStatsChanged, onBack }: SettingsScreenProps) {
+export default function SettingsScreen({
+  stats,
+  onStatsChanged,
+  onBack,
+  theme,
+  onThemeChange,
+}: SettingsScreenProps) {
   const [root, setRoot] = useState<string | null>(null)
   const [rescanning, setRescanning] = useState(false)
   const [rescanNotice, setRescanNotice] = useState<string | null>(null)
@@ -67,6 +76,23 @@ export default function SettingsScreen({ stats, onStatsChanged, onBack }: Settin
 
       <main className="flex-1 overflow-y-auto px-10 py-8">
         <div className="mx-auto flex max-w-3xl flex-col gap-10">
+          <Section title="Aparência" description="Tema de cores da interface.">
+            <div className="border-line-strong inline-flex gap-1 rounded-control border p-1">
+              <ThemeOption
+                label="Escuro"
+                icon="moon"
+                active={theme === 'dark'}
+                onClick={() => onThemeChange('dark')}
+              />
+              <ThemeOption
+                label="Claro"
+                icon="sun"
+                active={theme === 'light'}
+                onClick={() => onThemeChange('light')}
+              />
+            </div>
+          </Section>
+
           <Section
             title="Progresso"
             description="Quanto da biblioteca já passou pelo feed."
@@ -148,5 +174,31 @@ function Section({
       </div>
       {children}
     </section>
+  )
+}
+
+function ThemeOption({
+  label,
+  icon,
+  active,
+  onClick,
+}: {
+  label: string
+  icon: 'sun' | 'moon'
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-control flex items-center gap-2 px-4 py-2 text-sm font-medium transition ${
+        active ? 'bg-accent text-white' : 'text-fg-muted hover:text-fg hover:bg-surface-hover'
+      }`}
+    >
+      <Icon name={icon} className="h-4 w-4" />
+      {label}
+    </button>
   )
 }

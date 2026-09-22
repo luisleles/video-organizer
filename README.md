@@ -5,10 +5,10 @@ TypeScript, Vite e TailwindCSS. Alvos: Windows x64 e Linux (Zorin OS / Ubuntu).
 
 ## Windows
 
-Para usar, abra `video-organizer-1.0.4-x64-nsis.exe` na pasta `release/` e
+Para usar, abra `video-organizer-1.0.5-x64-nsis.exe` na pasta `release/` e
 siga o instalador. Ele permite escolher a pasta de instalação e cria atalhos
 na área de trabalho e no menu Iniciar. A alternativa
-`video-organizer-1.0.4-x64-portable.exe` abre sem instalação.
+`video-organizer-1.0.5-x64-portable.exe` abre sem instalação.
 Os dois usam o catálogo em `%APPDATA%\video-organizer\library.db`;
 a versão portátil também salva os dados no perfil do usuário.
 
@@ -55,15 +55,22 @@ empacotamento para Linux (`.AppImage` e `.deb`, ver seção própria abaixo).
 
 ## Identidade visual
 
-O app é escuro por decisão de produto — é uma interface de mídia em tela cheia —,
-não por seguir a preferência do sistema. `color-scheme: dark` no `:root` faz o
-Chromium desenhar também barras de rolagem e controles nativos em escuro.
+Escuro é o tema padrão, por decisão de produto — é uma interface de mídia em
+tela cheia —, não por seguir a preferência do sistema; o claro fica disponível
+em Configurações > Aparência. `theme.ts` grava a escolha em `localStorage` e
+aplica via atributo `data-theme` no `<html>`, lido pelo `:root[data-theme='light']`
+de `index.css`; sem escolha salva, cai no escuro. `color-scheme` acompanha o
+tema trocado, fazendo o Chromium desenhar barras de rolagem e controles nativos
+no tom certo.
 
 As cores, cantos e espaçamentos vivem como tokens semânticos em
-`src/renderer/index.css`, dentro de `@theme`. As telas usam `bg-surface`,
+`src/renderer/index.css`, dentro de `@theme` (valores do escuro) e do bloco
+`:root[data-theme='light']` (overrides do claro). As telas usam `bg-surface`,
 `text-fg-muted`, `border-line` — nomes que descrevem o papel do elemento, não a
-cor. Trocar a paleta inteira (ou acrescentar um tema claro) é editar esse bloco,
-sem tocar em nenhuma tela.
+cor — então ajustar qualquer um dos dois temas é editar esses blocos, sem tocar
+em nenhuma tela. Os controles que ficam sobre o vídeo/imagem em si (barra de
+progresso, botão de tela cheia) continuam pretos de propósito nos dois temas,
+por serem sobrepostos a conteúdo arbitrário, não ao fundo do app.
 
 ## Atalhos do feed
 
@@ -235,7 +242,7 @@ Pontos que valem saber:
 ### Instalando o `.deb` gerado
 
 ```bash
-sudo apt install ./release/video-organizer-1.0.4-amd64.deb
+sudo apt install ./release/video-organizer-1.0.5-amd64.deb
 ```
 
 Usar `apt install ./arquivo.deb` (com o `./` na frente) em vez de `dpkg -i` é o
@@ -250,8 +257,8 @@ Vídeo) como "Video Organizer", e também dá para abrir pelo terminal com
 ### Rodando o `.AppImage`
 
 ```bash
-chmod +x release/video-organizer-1.0.4-x86_64.AppImage
-./release/video-organizer-1.0.4-x86_64.AppImage
+chmod +x release/video-organizer-1.0.5-x86_64.AppImage
+./release/video-organizer-1.0.5-x86_64.AppImage
 ```
 
 Não precisa de `sudo` nem de instalação — o arquivo já é o app inteiro. Se o
